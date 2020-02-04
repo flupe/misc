@@ -2,11 +2,19 @@ module Levitation where
 
 open import Agda.Primitive
 open import Level
-open import Data.String
+open import Data.String.Base
 open import Data.Product
-open import Data.Unit
-open import Data.Unit
+open import Data.Unit.Base
 open import Data.List.Base hiding (all)
+open import Agda.Builtin.Size
+
+infixr 10 _$_
+
+_$_ : ∀ {a b} {A : Set a} {B : Set b} → (A → B) → A → B
+f $ x = f x
+
+case_of_ : ∀ {a b} {A : Set a} {B : Set b} → A → (A → B) → B
+case x of f = f x
 
 -- all of this is taken directly from The Gentle Art of Levitation
 --                                    Chapman, Dagand, McBride & Morris
@@ -71,17 +79,17 @@ module Inductive where
     ze      → ′1
     (su ze) → ′ind× (′Σ X λ _ → ′ind× ′1)
 
-  data μ {l} (D : Desc {l}) : Set l where
-    con : ⟦ D ⟧ (μ D) → μ D
+  data μ {l} (D : Desc {l}) {s : Size} : Set l where
+    ⟨_⟩ : {t : Size< s} → ⟦ D ⟧ (μ D {t}) → μ D {s}
 
   Nat : Set
   Nat = μ NatD
 
   zz : Nat
-  zz = con (ze , lift tt)
+  zz = ⟨ ze , lift tt ⟩
 
   ss : Nat → Nat
-  ss x = con (su ze , x , lift tt)
+  ss x = ⟨ su ze , x , lift tt ⟩
 
   All : ∀ {ℓ} (D : Desc {ℓ}) (X : Set ℓ) (P : X → Set ℓ) (xs : ⟦ D ⟧ X) → Set (lsuc ℓ)
   All {ℓ} ′1    X P _       = Lift (lsuc ℓ) ⊤
@@ -96,9 +104,9 @@ module Inductive where
   all (′Σ S D)  X P p (s , d) = all (D s) X P p d
   all (′ind× D) X P p (x , d) = p x , all D X P p d
 
-  ind : ∀ {ℓ} (D : Desc {ℓ}) (P : μ D → Set ℓ)
-      → ((d : ⟦ D ⟧ (μ D)) → All D (μ D) P d → P (con d))
-      → (x : μ D)
+  ind : ∀ {ℓ s} (D : Desc {ℓ}) (P : ∀ {s} → μ D {s} → Set ℓ)
+      → (∀ {s} {t : Size< s} (d : ⟦ D ⟧ (μ D {t})) → All D (μ D {t}) P d → P {s} ⟨ d ⟩)
+      → (x : μ D {s})
       → P x
-  ind D P m (con d) = m d (all D (μ D) P (ind D P m) d)
 
+  ind D P m ⟨ d ⟩ = m d (all D (μ D) P (ind D P m) d)
