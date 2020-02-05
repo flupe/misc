@@ -1,12 +1,14 @@
 module Levitation where
 
+open import Agda.Builtin.Size
 open import Agda.Primitive
-open import Level
+open import Level using (Lift; lift)
+
+open import Data.Nat using (ℕ; zero; suc; _≤?_)
+open import Data.Fin using (Fin; zero; suc)
 open import Data.String.Base
 open import Data.Product
 open import Data.Unit.Base
-open import Data.List.Base hiding (all)
-open import Agda.Builtin.Size
 
 infixr 10 _$_
 
@@ -16,35 +18,32 @@ f $ x = f x
 case_of_ : ∀ {a b} {A : Set a} {B : Set b} → A → (A → B) → B
 case x of f = f x
 
+
 -- all of this is taken directly from The Gentle Art of Levitation
 --                                    Chapman, Dagand, McBride & Morris
 
 module Enumerations where
 
-  infix 30 ′_
-  
-  data Tag : Set where
-    ′_ : String → Tag
-
   -- enumeration universe
+  -- here we do not really care about named tags
   En : Set
-  En = List Tag
+  En = ℕ
 
-  -- tag choices
-  data #_ : En → Set where
-    ze : ∀ {t E}             → # (t ∷ E)
-    su : ∀ {t E} → (n : # E) → # (t ∷ E)
+  #_ : ℕ → Set
+  #_ = Fin
 
   π : ∀ {ℓ} (E : En) (P : # E → Set ℓ) → Set ℓ
-  π {ℓ} []  P = Lift ℓ ⊤
-  π (t ∷ E) P = P ze × π E λ x → P (su x)
+  π {ℓ} zero    P = Lift ℓ ⊤
+  π     (suc n) P = P zero × π n λ x → P (suc x)
 
   switch : (E : En) (P : # E → Set) → π E P → (x : # E) → P x
-  switch (t ∷ E) P (π₀ , _) ze     = π₀
-  switch (t ∷ E) P (_ , π₁) (su x) = switch E (λ x → P (su x)) π₁ x
+  switch (suc n) P (π₀ , _) zero    = π₀
+  switch (suc n) P (_ , π₁) (suc x) = switch n (λ x → P (suc x)) π₁ x
 
 
 module Inductive where
+
+  open import Data.Vec.Base using (Vec; _∷_; []; here; there; lookup)
 
   open Enumerations
 
@@ -54,42 +53,60 @@ module Inductive where
     ′ind× : Desc {ℓ}                         → Desc
 
   ⟦_⟧ : ∀ {ℓ} → Desc {ℓ} → Set ℓ → Set ℓ
-  ⟦_⟧ {ℓ} ′1  t = Lift ℓ ⊤
-  ⟦ ′Σ S D ⟧  t = Σ S λ s → ⟦ D s ⟧ t
-  ⟦ ′ind× D ⟧ t = t × ⟦ D ⟧ t
+  ⟦_⟧ {ℓ} ′1  X = Lift ℓ ⊤
+  ⟦ ′Σ S D ⟧  X = Σ S λ s → ⟦ D s ⟧ X
+  ⟦ ′ind× D ⟧ X = X × ⟦ D ⟧ X
+
+
+  -- a terser way to describe datatype constructors
+  [_] : ∀ {n} → Vec (Desc) n → Desc
+  [_] {n} v = ′Σ (# n) (lookup v)
 
   NatD : Desc
-  NatD = ′Σ (# (′ "zero" ∷ ′ "suc" ∷ [])) λ where
-    ze      → ′1
-    (su ze) → ′ind× ′1
-
-  injzero : ∀ {Z} → ⟦ NatD ⟧ Z
-  injzero = ze , lift tt
-
-  injsucc : ∀ {Z} → Z → ⟦ NatD ⟧ Z
-  injsucc n = su ze , n , lift tt
+  NatD = [ ′1 ∷ ′ind× ′1 ∷ [] ]
 
   ListD : Set → Desc
-  ListD X = ′Σ (# (′ "nil" ∷ ′ "cons" ∷ [])) λ where
-    ze      → ′1
-    (su ze) → ′Σ X λ _ → ′ind× ′1
+  ListD X = [ ′1 ∷ ′Σ X (λ _ → ′ind× ′1) ∷ [] ]
 
   TreeD : Set → Desc
-  TreeD X = ′Σ (# (′ "leaf" ∷ ′ "node" ∷ [])) λ where
-    ze      → ′1
-    (su ze) → ′ind× (′Σ X λ _ → ′ind× ′1)
+  TreeD X = [ ′1 ∷ ′ind× (′Σ X (λ _ → ′ind× ′1)) ∷ [] ]
+
 
   data μ {l} (D : Desc {l}) {s : Size} : Set l where
     ⟨_⟩ : {t : Size< s} → ⟦ D ⟧ (μ D {t}) → μ D {s}
 
+
+  unit : ∀ {ℓ} → Lift ℓ ⊤
+  unit = lift tt
+
   Nat : Set
   Nat = μ NatD
 
-  zz : Nat
-  zz = ⟨ ze , lift tt ⟩
+  ze : Nat
+  ze = ⟨ zero , unit ⟩
 
-  ss : Nat → Nat
-  ss x = ⟨ su ze , x , lift tt ⟩
+  su : Nat → Nat
+  su x = ⟨ suc zero , x , unit ⟩
+
+  Tree : Set → Set
+  Tree X = μ (TreeD X)
+
+  leaf : ∀ {X} → Tree X
+  leaf = ⟨ zero , unit ⟩
+
+  node : ∀ {X} → Tree X → X → Tree X → Tree X
+  node l x r = ⟨ suc zero , l , x , r , unit ⟩
+
+
+  map-fold : ∀ {D} (D′ : Desc) (X : Set) (P : ⟦ D ⟧ X → X) (x : ⟦ D′ ⟧ (μ D)) → ⟦ D′ ⟧ X
+  fold     :       (D  : Desc) (X : Set) (P : ⟦ D ⟧ X → X) (x : μ D)          → X
+
+  fold D X P ⟨ x ⟩ = P (map-fold D X P x)
+
+  map-fold      ′1        X P x       = lift tt
+  map-fold      (′Σ S D)  X P (s , d) = s , (map-fold (D s) X P d)
+  map-fold {D′} (′ind× D) X P (x , d) = fold D′ X P x , map-fold D X P d
+
 
   All : ∀ {ℓ} (D : Desc {ℓ}) (X : Set ℓ) (P : X → Set ℓ) (xs : ⟦ D ⟧ X) → Set (lsuc ℓ)
   All {ℓ} ′1    X P _       = Lift (lsuc ℓ) ⊤
@@ -100,7 +117,7 @@ module Inductive where
       → (p : (x : X) → P x)
       → (xs : ⟦ D ⟧ X)
       → All D X P xs
-  all ′1        X P p _       = lift tt
+  all ′1        X P p _       = unit
   all (′Σ S D)  X P p (s , d) = all (D s) X P p d
   all (′ind× D) X P p (x , d) = p x , all D X P p d
 
