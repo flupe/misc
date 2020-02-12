@@ -10,6 +10,7 @@ A × B = Σ A λ _ → B
 const : {A B : Set} → B → A → B
 const x = λ _ → x
 
+infixr 10 _∘_
 _∘_ : {A B C : Set} → (B → C) → (A → B) → A → C
 _∘_ g f x = g (f x)
 
@@ -177,6 +178,13 @@ module Indexed where
     _⊗_    : (S : ⟦ Γ ⟧Ctx → Set) → (D : ConDesc (Γ ▷ S) I) → ConDesc Γ I
     rec_⊗_ : (r : ⟦ Γ ⟧Ctx → ⟦ I ⟧Ctx) → (D : ConDesc Γ I) → ConDesc Γ I
 
+
+  rec′_⊗_ : ∀ {Γ S} (r : ⟦ Γ ⟧Ctx → S) → (D : ConDesc Γ (ε ▷ const S)) → ConDesc Γ (ε ▷ const S)
+  rec′_⊗_  r D = rec (λ γ → tt , r γ) ⊗ D
+
+  ι′ : ∀ {Γ S} (r : ⟦ Γ ⟧Ctx → S) → ConDesc Γ (ε ▷ const S)
+  ι′ r = ι (λ γ → tt , r γ)
+  
   data DatDesc (Γ : Ctx) (I : Ctx) : nat → Set where
     ε : DatDesc Γ I 0
     _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
@@ -199,7 +207,7 @@ module Indexed where
 
   vecD : DatDesc (ε ▷′ Set) (ε ▷′ nat) 2
   vecD = ι (const (tt , 0))
-       ∣ const nat ⊗ snd ∘ fst ⊗ rec (λ γ → tt , snd (fst γ)) ⊗ ι (λ γ → tt , su (snd (fst γ)))
+       ∣ const nat ⊗ snd ∘ fst ⊗ rec′ (snd ∘ fst) ⊗ ι′ (su ∘ snd ∘ fst)
        ∣ ε
 
   vec : Set → nat → Set
@@ -213,3 +221,8 @@ module Indexed where
 
   v₁ : vec nat 2
   v₁ = cons 3 (cons 1 nil)
+
+  finD : DatDesc ε (ε ▷′ nat) 2
+  finD = const nat ⊗ ι′ (su ∘ snd)
+       ∣ const nat ⊗ rec′ snd ⊗ ι′ (su ∘ snd)
+       ∣ ε
