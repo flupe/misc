@@ -354,11 +354,6 @@ module Indexed where
 
   open Eq using (deq)
 
-  -- REFS
-  -- The Gentle Art of Levitation
-  -- http://effectfully.blogspot.com/2016/02/simple-generic-programming.html
-  -- http://effectfully.blogspot.com/2016/07/cumu.html
-
   module _ where
 
     natD : DatDesc ε ε 2
@@ -379,7 +374,7 @@ module Indexed where
     eqnadw = tt , tt , tt
 
     instance
-      Eqμnat : eq (`nat)
+      Eqμnat : eq `nat
       _≟_ {{Eqμnat}} = deq eqnadw
 
 
@@ -405,24 +400,39 @@ module Indexed where
       _≟_ {{Eqμlist {A} {r}}} = deq (eqlistw {A} {r})
 
 
-    vecD : DatDesc (ε ▷′ Set) (ε ▷′ nat) 2
-    vecD = ι′ (const 0)
-         ∣ const nat ⊗ snd ∘ fst ⊗ rec′ (snd ∘ fst) ⊗ ι′ (su ∘ snd ∘ fst)
+    vecD : DatDesc (ε ▷′ Set) (ε ▷′ `nat) 2
+    vecD = ι′ (const `ze)
+         ∣ const `nat ⊗ snd ∘ fst ⊗ rec′ (snd ∘ fst) ⊗ ι′ (`su ∘ snd ∘ fst)
          ∣ ε
 
-    vec : Set → nat → Set
+    vec : Set → `nat → Set
     vec A n = μ vecD (tt , A) (tt , n)
 
-    nil : ∀ {A} → vec A 0
+    nil : ∀ {A} → vec A `ze
     nil = ⟨ ze , refl ⟩
 
-    cons : ∀ {A n} → A → vec A n → vec A (su n)
+    cons : ∀ {A n} → A → vec A n → vec A (`su n)
     cons {n = n} x xs = ⟨ su ze , n , x , xs , refl ⟩
 
-    v₁ : vec nat 2
-    v₁ = cons 3 (cons 1 nil)
+    eqvecw : ∀ {A} {r : eq A} → ⟦ vecD ⟧eqd (tt , A)
+    eqvecw {r = r} = tt , (Eqμnat , const (r , const tt)) , tt
 
-    finD : DatDesc ε (ε ▷′ nat) 2
-    finD = const nat ⊗ ι′ (su ∘ snd)
-         ∣ const nat ⊗ rec′ snd ⊗ ι′ (su ∘ snd)
+    instance
+      Eqμvec : ∀ {A n} {r : eq A} → eq (vec A n)
+      _≟_ {{Eqμvec {A} {r = r}}} = deq (eqvecw {A} {r})
+
+
+    finD : DatDesc ε (ε ▷′ `nat) 2
+    finD = const `nat ⊗ ι′ (`su ∘ snd)
+         ∣ const `nat ⊗ rec′ snd ⊗ ι′ (`su ∘ snd)
          ∣ ε
+
+    `fin : `nat → Set
+    `fin n = μ finD tt (tt , n)
+
+    eqfinw : ⟦ finD ⟧eqd tt
+    eqfinw = (Eqμnat , const tt) , (Eqμnat , const tt) , tt
+
+    instance
+      Eqμfin : ∀ {n} → eq (`fin n)
+      _≟_ {{Eqμfin}} = deq eqfinw
