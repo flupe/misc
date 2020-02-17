@@ -19,7 +19,6 @@ _∘_ g f x = g (f x)
 data nat : Set where
   ze : nat
   su : nat → nat
-{-# BUILTIN NATURAL nat #-}
 
 data bool : Set where
   tt ff : bool
@@ -112,7 +111,7 @@ module NonParametrized where
     rec-⊗_ : (D : ConDesc) → ConDesc
   
   data DatDesc : nat → Set where
-    ε : DatDesc 0
+    ε : DatDesc ze 
     _∣_ : ∀ {n} → (C : ConDesc) → (D : DatDesc n) → DatDesc (su n)
   
   lookup : ∀ {n} → DatDesc n → fin n → ConDesc
@@ -127,7 +126,7 @@ module NonParametrized where
   ⟦_⟧d : ∀ {n} → DatDesc n → Set → Set
   ⟦_⟧d {n} D X = Σ (fin n) λ k → ⟦ lookup D k ⟧c X
   
-  natD : DatDesc 2
+  natD : DatDesc (su (su ze)) 
   natD = ι ∣ rec-⊗ ι ∣ ε
   
   data μ {n} (D : DatDesc n) : Set where
@@ -147,7 +146,7 @@ module NonParametrized where
        nil : natlist
        cons : nat → natlist → nat -}
 
-  natlistD : DatDesc 2
+  natlistD : DatDesc (su (su ze))
   natlistD = ι ∣ nat ⊗ const (rec-⊗ ι) ∣ ε
 
   natlist = μ natlistD
@@ -163,7 +162,7 @@ module NonParametrized where
        nil : homlist
        cons : (A : Set) → A → natlist → homlist -}
 
-  homlistD : DatDesc 2
+  homlistD : DatDesc (su (su ze))
   homlistD = ι ∣ Set ⊗ (λ A → A ⊗ const (rec-⊗ ι)) ∣ ε
 
   homlist = μ homlistD
@@ -214,7 +213,7 @@ module Parametrized where
   
 
   data DatDesc (Γ : Ctx) : nat → Set where
-    ε : DatDesc Γ 0
+    ε : DatDesc Γ ze
     _∣_ : ∀ {n} → (C : ConDesc Γ) → (D : DatDesc Γ n) → DatDesc Γ (su n)
 
   lookup : ∀ {Γ n} → DatDesc Γ n → fin n → ConDesc Γ
@@ -235,7 +234,7 @@ module Parametrized where
     ⟨_⟩ : ⟦ D ⟧d γ (μ D γ) → μ D γ
   
 
-  listD : DatDesc (ε ▷′ Set) 2
+  listD : DatDesc (ε ▷′ Set) (su (su ze))
   listD = ι ∣ snd ⊗ rec-⊗ ι ∣ ε
 
   list : Set → Set
@@ -248,7 +247,7 @@ module Parametrized where
   cons x xs = ⟨ su ze , x , xs , tt ⟩
 
   t : list nat
-  t = cons 5 (cons 3 nil)
+  t = cons (su ze) (cons ze nil)
 
 
 module Indexed where
@@ -264,7 +263,7 @@ module Indexed where
     rec_⊗_ : (r : ⟦ Γ ⟧Ctx → ⟦ I ⟧Ctx) → (D : ConDesc Γ I) → ConDesc Γ I
 
   data DatDesc (Γ : Ctx) (I : Ctx) : nat → Set where
-    ε   : DatDesc Γ I 0
+    ε   : DatDesc Γ I ze
     _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
 
   rec′_⊗_ : ∀ {Γ S I i} (r : ⟦ Γ ⟧Ctx → S) → (D : ConDesc Γ (I ▷ const S)) → ConDesc Γ (I ▷ const S)
@@ -354,9 +353,9 @@ module Indexed where
 
   open Eq using (deq)
 
-  module _ where
+  module Sample where
 
-    natD : DatDesc ε ε 2
+    natD : DatDesc ε ε (su (su ze))
     natD = ι (const tt)
          ∣ rec const tt ⊗ ι (const tt)
          ∣ ε
@@ -378,7 +377,7 @@ module Indexed where
       _≟_ {{Eqμnat}} = deq eqnadw
 
 
-    listD : DatDesc (ε ▷′ Set) ε 2
+    listD : DatDesc (ε ▷′ Set) ε (su (su ze))
     listD = ι (const tt)
           ∣ snd ⊗ rec const tt ⊗ ι (const tt)
           ∣ ε
@@ -400,7 +399,7 @@ module Indexed where
       _≟_ {{Eqμlist {A} {r}}} = deq (eqlistw {A} {r})
 
 
-    vecD : DatDesc (ε ▷′ Set) (ε ▷′ `nat) 2
+    vecD : DatDesc (ε ▷′ Set) (ε ▷′ `nat) (su (su ze))
     vecD = ι′ (const `ze)
          ∣ const `nat ⊗ snd ∘ fst ⊗ rec′ (snd ∘ fst) ⊗ ι′ (`su ∘ snd ∘ fst)
          ∣ ε
@@ -422,7 +421,7 @@ module Indexed where
       _≟_ {{Eqμvec {A} {r = r}}} = deq (eqvecw {A} {r})
 
 
-    finD : DatDesc ε (ε ▷′ `nat) 2
+    finD : DatDesc ε (ε ▷′ `nat) (su (su ze))
     finD = const `nat ⊗ ι′ (`su ∘ snd)
          ∣ const `nat ⊗ rec′ snd ⊗ ι′ (`su ∘ snd)
          ∣ ε
@@ -436,3 +435,51 @@ module Indexed where
     instance
       Eqμfin : ∀ {n} → eq (`fin n)
       _≟_ {{Eqμfin}} = deq eqfinw
+
+
+module Automated where
+
+  open import Agda.Builtin.Reflection hiding (nat)
+  open Parametrized using (Ctx; ⟦_⟧Ctx; ε)
+  open Indexed using (DatDesc; μ; ⟨_⟩)
+  open Indexed.Sample using (natD; `ze; `su)
+
+  record HasDesc (A : Set) : Set where
+    field
+      {n}  : nat
+      {Γ} {I} : Ctx
+      desc : DatDesc Γ I n
+      {γ}    : ⟦ Γ ⟧Ctx
+      {i}    : ⟦ I ⟧Ctx
+      to   : A → μ desc γ i
+      from : μ desc γ i → A
+      
+      from∘to : (x : A) → from (to x) ≡ x
+      to∘from : (x : μ desc γ i) → to (from x) ≡ x
+  open HasDesc {{...}}
+
+  instance
+    {-# TERMINATING #-}
+    natHasDesc : HasDesc nat
+    Γ    {{natHasDesc}} = ε
+    I    {{natHasDesc}} = ε
+    n    {{natHasDesc}} = su (su ze)
+    desc {{natHasDesc}} = natD
+    γ    {{natHasDesc}} = tt
+    i    {{natHasDesc}} = tt
+
+    to ⦃ natHasDesc ⦄ = λ where
+      ze     → `ze 
+      (su n) → `su (to n)
+
+    from ⦃ natHasDesc ⦄ = λ where
+      ⟨ ze , refl ⟩        → ze
+      ⟨ su ze , n , refl ⟩ → su (from n)
+
+    from∘to ⦃ natHasDesc ⦄ = λ where
+      ze     → refl
+      (su n) → cong su (from∘to n)
+
+    to∘from ⦃ natHasDesc ⦄ = λ where
+      ⟨ ze , refl ⟩        → refl
+      ⟨ su ze , n , refl ⟩ → cong (λ p → ⟨ su ze , p , refl ⟩) (to∘from n) 
