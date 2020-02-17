@@ -99,6 +99,11 @@ instance
   _≟_ ⦃ eqfin ⦄ (su a) ze     = no λ ()
   _≟_ ⦃ eqfin ⦄ (su a) (su b) = bimap (cong su) (_∘ injsu) (a ≟ b) 
 
+record Monad (M : Set → Set) : Set where
+  field
+    return : {A : Set} → A → M A
+    _>>=_   : {A B : Set} → M A → (A → M B) → M B
+open Monad {{...}}
 
 module NonParametrized where
 
@@ -440,9 +445,11 @@ module Indexed where
 module Automated where
 
   open import Agda.Builtin.Reflection hiding (nat)
+  open import Agda.Builtin.List
+  open import Agda.Builtin.Nat
   open Parametrized using (Ctx; ⟦_⟧Ctx; ε)
-  open Indexed using (DatDesc; μ; ⟨_⟩)
-  open Indexed.Sample using (natD; `ze; `su)
+  open Indexed using (DatDesc; ConDesc; μ; ⟨_⟩)
+  open Indexed.Sample using (natD; `nat; `ze; `su)
 
   record HasDesc (A : Set) : Set where
     field
@@ -483,3 +490,56 @@ module Automated where
     to∘from ⦃ natHasDesc ⦄ = λ where
       ⟨ ze , refl ⟩        → refl
       ⟨ su ze , n , refl ⟩ → cong (λ p → ⟨ su ze , p , refl ⟩) (to∘from n) 
+
+  instance
+    TCMonad : Monad TC
+    return ⦃ TCMonad ⦄ = returnTC
+    _>>=_ ⦃ TCMonad ⦄ = bindTC
+    
+  {-
+  data ConDesc (Γ : Ctx) (I : Ctx) : Set where
+    ι       : (⟦ Γ ⟧Ctx → ⟦ I ⟧Ctx) → ConDesc Γ I
+    _⊗_    : (S : ⟦ Γ ⟧Ctx → Set) → (D : ConDesc (Γ ▷ S) I) → ConDesc Γ I
+    rec_⊗_ : (r : ⟦ Γ ⟧Ctx → ⟦ I ⟧Ctx) → (D : ConDesc Γ I) → ConDesc Γ I
+
+  data DatDesc (Γ : Ctx) (I : Ctx) : nat → Set where
+    ε   : DatDesc Γ I ze
+    _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
+    -}
+
+  conDesc : Name → TC Term
+  conDesc n = return
+    (con (quote ConDesc.ι) ( arg (arg-info visible relevant)
+                                 (lam visible (abs "γ" (con (quote ⊤.tt) [])))
+                           ∷ []))
+
+  makeDesc : List Name → TC Term
+  makeDesc []       = return (con (quote DatDesc.ε) [])
+  makeDesc (x ∷ xs) = do
+    descxs ← makeDesc xs
+    descx  ← conDesc x
+    return (con (quote DatDesc._∣_) ( arg (arg-info hidden relevant) unknown
+                                    ∷ arg (arg-info visible relevant) descx
+                                    ∷ arg (arg-info visible relevant) descxs
+                                    ∷ []))
+
+  deriveDesc : Name → Nat → List Name → TC Term
+  deriveDesc d n cs = do
+    desc ← makeDesc cs
+    return desc
+
+  macro
+    inspect : Name → Term →  TC ⊤
+    inspect d hole = do
+      x ← getDefinition d
+      case x of λ where
+        (data-type n cs) → deriveDesc d n cs >>= unify hole
+        _                → typeError (strErr "Argument is not a datatype." ∷ [])
+
+  d : DatDesc ε ε _
+  d = inspect nat
+
+open import Agda.Builtin.Reflection public hiding (nat)
+open import Agda.Builtin.Bool public
+open Monad public
+open Automated public
