@@ -3,6 +3,8 @@
 open import Agda.Builtin.Unit
 open import Agda.Builtin.Sigma
 
+module TTTTest where
+
 _×_ : (A B : Set) → Set
 A × B = Σ A λ _ → B
 
@@ -446,7 +448,10 @@ module Automated where
 
   open import Agda.Builtin.Reflection hiding (nat)
   open import Agda.Builtin.List
+  open import Agda.Builtin.Bool
   open import Agda.Builtin.Nat
+  import Agda.Builtin.Equality
+  open import Agda.Builtin.TrustMe
   open Parametrized using (Ctx; ⟦_⟧Ctx; ε)
   open Indexed using (DatDesc; ConDesc; μ; ⟨_⟩)
   open Indexed.Sample using (natD; `nat; `ze; `su)
@@ -495,6 +500,16 @@ module Automated where
     TCMonad : Monad TC
     return ⦃ TCMonad ⦄ = returnTC
     _>>=_ ⦃ TCMonad ⦄ = bindTC
+
+  converteq : {A : Set} {x y : A} → Agda.Builtin.Equality._≡_ x y → x ≡ y
+  converteq Agda.Builtin.Equality._≡_.refl = refl
+
+  instance
+    eqName : eq Name
+    _≟_ {{eqName}} x y with primQNameEquality x y
+    ... | true  = yes (converteq (primTrustMe {x = x} {y = y}))
+    ... | false = no λ x≡y → trustme
+        where postulate trustme : ⊥
     
   {-
   data ConDesc (Γ : Ctx) (I : Ctx) : Set where
@@ -507,8 +522,15 @@ module Automated where
     _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
     -}
 
-  conDesc : Name → TC Term
-  conDesc n = return
+  conDesc : Term → TC Term
+  conDesc (pi (arg _ t) (abs _ rt)) = do
+    rest ← conDesc rt
+    case t of λ where
+      _ → return (con (quote ConDesc._⊗_) ( arg (arg-info visible relevant) (lam visible (abs "γ" (t)))
+                                          ∷ arg (arg-info visible relevant) rest
+                                          ∷ []))
+
+  conDesc _ = return
     (con (quote ConDesc.ι) ( arg (arg-info visible relevant)
                                  (lam visible (abs "γ" (con (quote ⊤.tt) [])))
                            ∷ []))
@@ -517,7 +539,8 @@ module Automated where
   makeDesc []       = return (con (quote DatDesc.ε) [])
   makeDesc (x ∷ xs) = do
     descxs ← makeDesc xs
-    descx  ← conDesc x
+    ct     ← getType x
+    descx  ← conDesc ct
     return (con (quote DatDesc._∣_) ( arg (arg-info hidden relevant) unknown
                                     ∷ arg (arg-info visible relevant) descx
                                     ∷ arg (arg-info visible relevant) descxs
