@@ -521,6 +521,24 @@ module Automated where
     _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
     -}
 
+  hidrel : ArgInfo
+  hidrel = arg-info hidden relevant
+
+  visrel : ArgInfo
+  visrel = arg-info visible relevant
+
+  hr : ∀ {A} → A → Arg A
+  hr t = arg hidrel  t
+
+  vr : ∀ {A} → A → Arg A
+  vr t = arg visrel t
+
+  uhr : Arg Term
+  uhr = hr unknown
+
+  uvr : Arg Term
+  uvr = vr unknown
+
   conDesc : (dn : Name) → Term → TC Term
   conDesc dn (pi (arg _ t) (abs _ rt)) = do
     rest ← conDesc dn rt
@@ -528,19 +546,16 @@ module Automated where
       (def dn args) →
         return (con (quote ConDesc.rec_⊗_)
                     -- TODO: take care of indices
-                    ( arg (arg-info visible relevant) (lam visible (abs "γ" (quoteTerm ⊤.tt)))
-                    ∷ arg (arg-info visible relevant) rest
+                    ( vr (lam visible (abs "γ" (quoteTerm ⊤.tt)))
+                    ∷ vr rest
                     ∷ []))
       _ →
-        return (con (quote ConDesc._⊗_)
-                    ( arg (arg-info visible relevant) (lam visible (abs "γ" t))
-                    ∷ arg (arg-info visible relevant) rest
-                    ∷ []))
+        return (con (quote ConDesc._⊗_) ( vr (lam visible (abs "γ" t)) ∷ vr rest ∷ []))
 
   conDesc dn _ =
     return (con (quote ConDesc.ι)
                 -- TODO: take care of indices
-                ( arg (arg-info visible relevant) (lam visible (abs "γ" (con (quote ⊤.tt) [])))
+                ( vr (lam visible (abs "γ" (con (quote ⊤.tt) [])))
                 ∷ []))
 
   makeDesc : (dn : Name) → List Name → TC Term
@@ -549,11 +564,7 @@ module Automated where
     descxs ← makeDesc dn xs
     ct     ← getType x
     descx  ← conDesc dn ct
-    return (con (quote DatDesc._∣_)
-                ( arg (arg-info hidden relevant) unknown
-                ∷ arg (arg-info visible relevant) descx
-                ∷ arg (arg-info visible relevant) descxs
-                ∷ []))
+    return (con (quote DatDesc._∣_) ( uhr ∷ vr descx ∷ vr descxs ∷ []))
 
   deriveDesc : Name → Nat → List Name → TC Term
   deriveDesc d n cs = do
@@ -568,25 +579,6 @@ module Automated where
         (data-type n cs) → deriveDesc d n cs >>= unify hole
         _                → typeError (strErr "Argument is not a datatype." ∷ [])
 
-  module Test where
-    d : DatDesc ε ε _
-    d = derive-desc Nat
-
-    test : d ≡ natD
-    test = refl
-
-
-  hr : Term → Arg Term
-  hr t = arg (arg-info hidden relevant) t
-
-  vr : Term → Arg Term
-  vr t = arg (arg-info visible relevant) t
-
-  uhr : Arg Term
-  uhr = hr unknown
-
-  uvr : Arg Term
-  uvr = vr unknown
 
   pair : Term → Term → Term
   pair a b = con (quote Σ._,_)
@@ -598,11 +590,10 @@ module Automated where
   makeClause : Nat → Name → Term → TC Clause
   makeClause n cn cd = do
     ct ← getType cn
-    return (clause (arg (arg-info visible relevant) (con cn []) ∷ [])
+    return (clause (vr (con cn []) ∷ [])
                    (con (quote μ.⟨_⟩)
-                        ( arg (arg-info visible relevant)
-                              (pair (con (quote fin.ze) (hr (lit (Literal.nat 1)) ∷ []))
-                                    (con (quote _≡_.refl) ([]))) ∷  [])))
+                        ( vr (pair (con (quote fin.ze) (hr (lit (Literal.nat 1)) ∷ []))
+                                   (con (quote _≡_.refl) ([]))) ∷  [])))
 
   makeClauses : Nat → List Name → Term → TC (List Clause)
   makeClauses n (x ∷ xs) D@(con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
@@ -620,15 +611,13 @@ module Automated where
       (data-type n cs) → do
         xdes  ← deriveDesc dat n cs
 
-        declareDef (arg (arg-info visible relevant) fname)
-                   (pi (arg (arg-info visible relevant) (def dat []))
+        declareDef (vr fname)
+                   (pi (vr (def dat []))
                        (abs "x" (def ((quote μ))
-                                ( arg (arg-info hidden relevant) unknown
-                                ∷ arg (arg-info hidden relevant) unknown
-                                ∷ arg (arg-info hidden relevant) unknown
-                                ∷ arg (arg-info visible relevant) xdes
-                                ∷ arg (arg-info visible relevant) (con (quote ⊤.tt) [])
-                                ∷ arg (arg-info visible relevant) (con (quote ⊤.tt) [])
+                                ( uhr ∷ uhr ∷ uhr
+                                ∷ vr xdes
+                                ∷ vr (con (quote ⊤.tt) [])
+                                ∷ vr (con (quote ⊤.tt) [])
                                 ∷ []))))
 
         clauses ← makeClauses n cs xdes
