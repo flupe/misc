@@ -598,80 +598,94 @@ module Automated where
         (data-type n cs) → deriveDesc d n cs >>= unify hole
         _                → typeError (strErr "Argument is not a datatype." ∷ [])
 
+  patpair : Pattern → Pattern → Pattern
+  patpair a b = con (quote Σ._,_) ( vr a ∷ vr b ∷ [])
 
   pair : Term → Term → Term
-  pair a b = con (quote Σ._,_)
-             ( uhr ∷ uhr ∷ uhr ∷ uhr
-             ∷ vr a
-             ∷ vr b
-             ∷ [])
+  pair a b = con (quote Σ._,_) ( uhr ∷ uhr ∷ uhr ∷ uhr ∷ vr a ∷ vr b ∷ [])
 
-  buildClause : Name → Type → Term → TC (List Pattern × Term)
-  buildClause _ _ (con (quote ConDesc.ι) args) = return ([] , con (quote _≡_.refl) [])
+  buildClause : (tn fn : Name) → Type → Term → TC ((List Pattern × Term) × (Pattern × List Term))
+  buildClause _ _ _ (con (quote ConDesc.ι) args) =
+    return (([] , con (quote _≡_.refl) []) , (con (quote _≡_.refl) [] , []))
 
-  buildClause fn (pi _ (abs vn ct)) (con (quote ConDesc._⊗_) (_ ∷ arg _ D ∷ [])) = do
-    cpat , dtup ← buildClause fn ct D
-    return (var vn ∷ cpat , pair (var (length cpat) []) dtup)
+  buildClause tn fn (pi _ (abs vn ct)) (con (quote ConDesc._⊗_) (_ ∷ arg _ D ∷ [])) = do
+    (tpat , ttm) , (fpat , ftm) ← buildClause tn fn ct D
+    return ( (var vn ∷ tpat , pair (var (length tpat) []) ttm)
+           , (patpair (var vn) fpat , var (length ftm) [] ∷ ftm))
 
-  buildClause fn (pi _ (abs vn ct)) (con (quote ConDesc.rec_⊗_) (_ ∷ arg _ D ∷ [])) = do
-    cpat , dtup ← buildClause fn ct D
-    return (var vn ∷ cpat , pair (def fn (vr (var (length cpat) []) ∷ [])) dtup)
+  buildClause tn fn (pi _ (abs vn ct)) (con (quote ConDesc.rec_⊗_) (_ ∷ arg _ D ∷ [])) = do
+    (tpat , ttm) , (fpat , ftm) ← buildClause tn fn ct D
+    return ( (var vn ∷ tpat , pair (def tn (vr (var (length tpat) []) ∷ [])) ttm)
+           , (patpair (var vn) fpat , def fn (vr (var (length ftm) []) ∷ []) ∷ ftm))
 
-  buildClause _ _ _    = typeError (strErr "Ill-formed description for constructor" ∷ [])
+  buildClause _ _ _ _    = typeError (strErr "Ill-formed description for constructor" ∷ [])
 
-  makeClause : ∀ {n} → Name → fin n → Name → Term → TC Clause
-  makeClause fn n cn cd = do
+  fin-to-pat : ∀ {n} → fin n → Pattern
+  fin-to-pat ze = con (quote fin.ze) []
+  fin-to-pat (su n) = con (quote fin.su) (vr (fin-to-pat n) ∷ [])
+
+  makeClause : ∀ {n} → (tn fn : Name) → fin n → Name → Term → TC (Clause × Clause)
+  makeClause tn fn n cn cd = do
     ct ← getType cn
-    cpat , dtup ← buildClause fn ct cd
     n′ ← quoteTC n
-    return (clause (vr (con cn (map vr cpat)) ∷ [])
-                   (con (quote μ.⟨_⟩) (vr (pair n′ dtup) ∷ [])))
 
-  makeClauses : ∀ {n} → Name → List (fin n) → List Name → Term → TC (List Clause)
-  makeClauses fn (n ∷ ns) (x ∷ xs) (con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
-    cl  ← makeClause fn n x dx
-    cls ← makeClauses fn ns xs dxs
-    return (cl ∷ cls)
+    (tpat , ttm) , (fpat , ftm) ← buildClause tn fn ct cd
 
-  makeClauses _ _ [] (con (quote DatDesc.ε) _) = return []
-  makeClauses _ _ _  _ = typeError (strErr "Ill-formed description for datatype." ∷ [])
+    let tcl = clause (vr (con cn (map vr tpat)) ∷ [])
+                     (con (quote μ.⟨_⟩) (vr (pair n′ ttm) ∷ []))
 
-  derive-to : Name → Name → TC ⊤
-  derive-to fname dat = do
+    let fcl = clause (vr (con (quote μ.⟨_⟩)
+                              (vr (patpair (fin-to-pat n) fpat) ∷ []))
+                     ∷ [])
+                     (con cn (map vr ftm))
+
+    return (tcl , fcl)
+
+  makeClauses : ∀ {n} → (toName fromName : Name) → List (fin n) → List Name → Term → TC (List Clause × List Clause)
+  makeClauses tn fn (n ∷ ns) (x ∷ xs) (con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
+    tcl , fcl  ← makeClause tn fn n x dx
+    tcls , fcls ← makeClauses tn fn ns xs dxs
+    return (tcl ∷ tcls , fcl ∷ fcls)
+
+  makeClauses _ _ _ [] (con (quote DatDesc.ε) _) = return ([] , [])
+  makeClauses _ _ _ _  _ = typeError (strErr "Ill-formed description for datatype." ∷ [])
+
+  derive-fromto : Name → Name → Name → TC ⊤
+  derive-fromto fromName toName dat = do
     xdat ← getDefinition dat
     case xdat of λ where
       (data-type n cs) → do
-        xdes  ← deriveDesc dat n cs
+        xdesc  ← deriveDesc dat n cs
 
-        declareDef (vr fname)
-                   (pi (vr (def dat []))
-                       (abs "x" (def ((quote μ))
-                                ( uhr ∷ uhr ∷ uhr
-                                ∷ vr xdes
-                                ∷ vr (con (quote ⊤.tt) [])
-                                ∷ vr (con (quote ⊤.tt) [])
-                                ∷ []))))
+        let μtype = def (quote μ)
+                         ( uhr ∷ uhr ∷ uhr
+                         ∷ vr xdesc
+                         ∷ vr (con (quote ⊤.tt) [])
+                         ∷ vr (con (quote ⊤.tt) [])
+                         ∷ [])
 
-        clauses ← makeClauses fname (finlist (length cs)) cs xdes
+        declareDef (vr toName) (pi (vr (def dat [])) (abs "x" μtype))
+        declareDef (vr fromName) (pi (vr μtype) (abs "x" (def dat [])))
 
-        defineFun fname clauses
+        tcls , fcls ← makeClauses toName fromName (finlist (length cs)) cs xdesc
+
+        defineFun toName tcls
+        defineFun fromName fcls
 
       _ → typeError (strErr "Argument is not a datatype." ∷ [])
 
 
-  unquoteDecl natToDesc = derive-to natToDesc (quote Nat)
+  unquoteDecl descToNat natToDesc  = derive-fromto descToNat natToDesc (quote Nat)
 
-  check : natToDesc 1 ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
-  check = refl
+  check₁ : natToDesc 1 ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
+  check₁ = refl
 
-  data natlist : Set where
-    nil  : natlist
-    cons : Nat → natlist → natlist
-
-  unquoteDecl natlistToDesc = derive-to natlistToDesc (quote natlist)
-
-  check₂ : natlistToDesc (cons 1 nil) ≡ ⟨ su ze , 1 , ⟨ ze , refl ⟩ , refl ⟩
+  check₂ : descToNat (natToDesc 4) ≡ 4
   check₂ = refl
+
+  check₃ : natToDesc (descToNat ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩) ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
+  check₃ = refl
+
 
 open import Agda.Builtin.Reflection public hiding (nat)
 open import Agda.Builtin.Bool public
