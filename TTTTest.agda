@@ -558,12 +558,16 @@ module Automated where
   conDesc dn (pi (arg _ t) (abs _ rt)) = do
     rest ← conDesc dn rt
     case t of λ where
-      (def dn args) →
-        return (con (quote ConDesc.rec_⊗_)
-                    -- TODO: take care of indices
-                    ( vr (lam visible (abs "γ" (quoteTerm ⊤.tt)))
-                    ∷ vr rest
-                    ∷ []))
+      (def tn args) →
+        case tn ≟ dn of λ where
+          (yes _) → 
+            return (con (quote ConDesc.rec_⊗_)
+                        -- TODO: take care of indices
+                        ( vr (lam visible (abs "γ" (quoteTerm ⊤.tt)))
+                        ∷ vr rest
+                        ∷ []))
+          (no _) → 
+            return (con (quote ConDesc._⊗_) ( vr (lam visible (abs "γ" t)) ∷ vr rest ∷ []))
       _ →
         return (con (quote ConDesc._⊗_) ( vr (lam visible (abs "γ" t)) ∷ vr rest ∷ []))
 
@@ -607,11 +611,11 @@ module Automated where
 
   buildClause fn (pi _ (abs vn ct)) (con (quote ConDesc._⊗_) (_ ∷ arg _ D ∷ [])) = do
     cpat , dtup ← buildClause fn ct D
-    return (var vn ∷ cpat , pair (var 0 []) dtup)
+    return (var vn ∷ cpat , pair (var (length cpat) []) dtup)
 
   buildClause fn (pi _ (abs vn ct)) (con (quote ConDesc.rec_⊗_) (_ ∷ arg _ D ∷ [])) = do
     cpat , dtup ← buildClause fn ct D
-    return (var vn ∷ cpat , pair (def fn (vr (var 0 []) ∷ [])) dtup)
+    return (var vn ∷ cpat , pair (def fn (vr (var (length cpat) []) ∷ [])) dtup)
 
   buildClause _ _ _    = typeError (strErr "Ill-formed description for constructor" ∷ [])
 
@@ -654,10 +658,20 @@ module Automated where
 
       _ → typeError (strErr "Argument is not a datatype." ∷ [])
 
+
   unquoteDecl natToDesc = derive-to natToDesc (quote Nat)
 
   check : natToDesc 1 ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
   check = refl
+
+  data natlist : Set where
+    nil  : natlist
+    cons : Nat → natlist → natlist
+
+  unquoteDecl natlistToDesc = derive-to natlistToDesc (quote natlist)
+
+  check₂ : natlistToDesc (cons 1 nil) ≡ ⟨ su ze , 1 , ⟨ ze , refl ⟩ , refl ⟩
+  check₂ = refl
 
 open import Agda.Builtin.Reflection public hiding (nat)
 open import Agda.Builtin.Bool public
