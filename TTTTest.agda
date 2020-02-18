@@ -3,6 +3,7 @@
 open import Agda.Builtin.Unit
 open import Agda.Builtin.Sigma
 open import Agda.Builtin.Nat hiding (_==_)
+open import Agda.Builtin.List
 
 module TTTTest where
 
@@ -36,6 +37,7 @@ data maybe (A : Set) : Set where
 
 data _≡_ {A : Set} (x : A) : {B : Set} → B → Set where
   refl : x ≡ x
+
 
 cong : ∀ {A B x y} (f : A → B) (e : x ≡ y) → f x ≡ f y
 cong f refl = refl
@@ -80,6 +82,7 @@ path_sigma_neq : {A : Set} {B : A → Set} {a₁ a₂ : A} {b₁ : B a₁} {b₂
 path_sigma_neq (inl a₁≢a₂) = λ a≡b → a₁≢a₂ (path_sigma₁ a≡b) 
 path_sigma_neq (inr b₁≢b₂) = λ a≡b → b₁≢b₂ (path_sigma₂ a≡b)
 
+
 record eq (A : Set) : Set where
   field
     _≟_ : (x y : A) → dec (x ≡ y)
@@ -106,6 +109,18 @@ open Monad {{...}}
 
 _>>_ : {A B : Set} {M : Set → Set} {{_ : Monad M}} (a : M A) (b : M B) → M B
 a >> b = a >>= (const b)
+
+map : {A B : Set} → (A → B) → List A → List B
+map f [] = []
+map f (x ∷ xs) = f x ∷ map f xs
+
+length : {A : Set} → List A → Nat
+length [] = 0
+length (_ ∷ xs) = suc (length xs)
+
+finlist : (n : Nat) → List (fin n)
+finlist 0       = []
+finlist (suc n) = ze ∷ map su (finlist n)
 
 module NonParametrized where
 
@@ -587,22 +602,35 @@ module Automated where
              ∷ vr b
              ∷ [])
 
-  makeClause : Nat → Name → Term → TC Clause
-  makeClause n cn cd = do
-    ct ← getType cn
-    return (clause (vr (con cn []) ∷ [])
-                   (con (quote μ.⟨_⟩)
-                        ( vr (pair (con (quote fin.ze) (hr (lit (Literal.nat 1)) ∷ []))
-                                   (con (quote _≡_.refl) ([]))) ∷  [])))
+  buildClause : Name → Type → Term → TC (List Pattern × Term)
+  buildClause _ _ (con (quote ConDesc.ι) args) = return ([] , con (quote _≡_.refl) [])
 
-  makeClauses : Nat → List Name → Term → TC (List Clause)
-  makeClauses n (x ∷ xs) D@(con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
-    cl  ← makeClause n x dx
-    cls ← makeClauses n xs D
+  buildClause fn (pi _ (abs vn ct)) (con (quote ConDesc._⊗_) (_ ∷ arg _ D ∷ [])) = do
+    cpat , dtup ← buildClause fn ct D
+    return (var vn ∷ cpat , pair (var 0 []) dtup)
+
+  buildClause fn (pi _ (abs vn ct)) (con (quote ConDesc.rec_⊗_) (_ ∷ arg _ D ∷ [])) = do
+    cpat , dtup ← buildClause fn ct D
+    return (var vn ∷ cpat , pair (def fn (vr (var 0 []) ∷ [])) dtup)
+
+  buildClause _ _ _    = typeError (strErr "Ill-formed description for constructor" ∷ [])
+
+  makeClause : ∀ {n} → Name → fin n → Name → Term → TC Clause
+  makeClause fn n cn cd = do
+    ct ← getType cn
+    cpat , dtup ← buildClause fn ct cd
+    n′ ← quoteTC n
+    return (clause (vr (con cn (map vr cpat)) ∷ [])
+                   (con (quote μ.⟨_⟩) (vr (pair n′ dtup) ∷ [])))
+
+  makeClauses : ∀ {n} → Name → List (fin n) → List Name → Term → TC (List Clause)
+  makeClauses fn (n ∷ ns) (x ∷ xs) (con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
+    cl  ← makeClause fn n x dx
+    cls ← makeClauses fn ns xs dxs
     return (cl ∷ cls)
 
-  makeClauses _ [] ({- con (quote DatDesc.ε) []-}_) = return []
-  makeClauses _ _ _ = typeError (strErr "Ill-formed description for datatype." ∷ [])
+  makeClauses _ _ [] (con (quote DatDesc.ε) _) = return []
+  makeClauses _ _ _  _ = typeError (strErr "Ill-formed description for datatype." ∷ [])
 
   derive-to : Name → Name → TC ⊤
   derive-to fname dat = do
@@ -620,17 +648,16 @@ module Automated where
                                 ∷ vr (con (quote ⊤.tt) [])
                                 ∷ []))))
 
-        clauses ← makeClauses n cs xdes
+        clauses ← makeClauses fname (finlist (length cs)) cs xdes
 
         defineFun fname clauses
 
       _ → typeError (strErr "Argument is not a datatype." ∷ [])
-  
-  data Truc : Set where
-    tt ff : Truc
 
-  unquoteDecl ton = derive-to ton (quote Truc)
-    
+  unquoteDecl natToDesc = derive-to natToDesc (quote Nat)
+
+  check : natToDesc 1 ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
+  check = refl
 
 open import Agda.Builtin.Reflection public hiding (nat)
 open import Agda.Builtin.Bool public
