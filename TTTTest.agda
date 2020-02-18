@@ -2,6 +2,7 @@
 
 open import Agda.Builtin.Unit
 open import Agda.Builtin.Sigma
+open import Agda.Builtin.Nat hiding (_==_)
 
 module TTTTest where
 
@@ -18,16 +19,12 @@ infixr 10 _∘_
 _∘_ : {A B C : Set} → (B → C) → (A → B) → A → C
 _∘_ g f x = g (f x)
 
-data nat : Set where
-  ze : nat
-  su : nat → nat
-
 data bool : Set where
   tt ff : bool
 
-data fin : nat → Set where
-  ze : ∀ {n} → fin (su n)
-  su : ∀ {n} → fin n → fin (su n)
+data fin : Nat → Set where
+  ze : ∀ {n} → fin (suc n)
+  su : ∀ {n} → fin n → fin (suc n)
 
 data either (A B : Set) : Set where
   inl : A → either A B
@@ -59,7 +56,7 @@ bimap : ∀ {A C : Set} {x y : A} → (x ≡ y → C) → (x ≢ y → ¬ C) →
 bimap f g (yes a) = yes (f a)
 bimap f g (no  b) = no (g b)
 
-injsu : ∀ {n} {x y : fin n} → _≡_ {fin (su n)} (su x) {fin (su n)} (su y) → x ≡ y
+injsu : ∀ {n} {x y : fin n} → _≡_ {fin (suc n)} (su x) {fin (suc n)} (su y) → x ≡ y
 injsu refl = refl
 
 contr : ∀ {A B} (f : A → B) → ¬ B → ¬ A
@@ -107,6 +104,9 @@ record Monad (M : Set → Set) : Set where
     _>>=_   : {A B : Set} → M A → (A → M B) → M B
 open Monad {{...}}
 
+_>>_ : {A B : Set} {M : Set → Set} {{_ : Monad M}} (a : M A) (b : M B) → M B
+a >> b = a >>= (const b)
+
 module NonParametrized where
 
   infixr 5 _⊗_ 
@@ -117,9 +117,9 @@ module NonParametrized where
     _⊗_ : (S : Set) → (D : S → ConDesc) → ConDesc
     rec-⊗_ : (D : ConDesc) → ConDesc
   
-  data DatDesc : nat → Set where
-    ε : DatDesc ze 
-    _∣_ : ∀ {n} → (C : ConDesc) → (D : DatDesc n) → DatDesc (su n)
+  data DatDesc : Nat → Set where
+    ε : DatDesc 0
+    _∣_ : ∀ {n} → (C : ConDesc) → (D : DatDesc n) → DatDesc (suc n)
   
   lookup : ∀ {n} → DatDesc n → fin n → ConDesc
   lookup (C ∣ D) ze     = C
@@ -133,7 +133,7 @@ module NonParametrized where
   ⟦_⟧d : ∀ {n} → DatDesc n → Set → Set
   ⟦_⟧d {n} D X = Σ (fin n) λ k → ⟦ lookup D k ⟧c X
   
-  natD : DatDesc (su (su ze)) 
+  natD : DatDesc 2
   natD = ι ∣ rec-⊗ ι ∣ ε
   
   data μ {n} (D : DatDesc n) : Set where
@@ -153,15 +153,15 @@ module NonParametrized where
        nil : natlist
        cons : nat → natlist → nat -}
 
-  natlistD : DatDesc (su (su ze))
-  natlistD = ι ∣ nat ⊗ const (rec-⊗ ι) ∣ ε
+  natlistD : DatDesc 2
+  natlistD = ι ∣ Nat ⊗ const (rec-⊗ ι) ∣ ε
 
   natlist = μ natlistD
 
   nil′ : natlist
   nil′ = ⟨ ze , tt ⟩
 
-  cons′ : nat → natlist → natlist
+  cons′ : Nat → natlist → natlist
   cons′ x l = ⟨ su ze , x , l , tt ⟩
 
 
@@ -169,7 +169,7 @@ module NonParametrized where
        nil : homlist
        cons : (A : Set) → A → natlist → homlist -}
 
-  homlistD : DatDesc (su (su ze))
+  homlistD : DatDesc 2
   homlistD = ι ∣ Set ⊗ (λ A → A ⊗ const (rec-⊗ ι)) ∣ ε
 
   homlist = μ homlistD
@@ -211,7 +211,7 @@ module Parametrized where
     ex₁ = tt
 
     ex₂ : ⟦ ε ▷′ Set ▷ snd ⟧Ctx
-    ex₂ = tt ▶ nat ▶ 3
+    ex₂ = tt ▶ Nat ▶ 3
 
   data ConDesc (Γ : Ctx) : Set where
     ι      : ConDesc Γ
@@ -219,9 +219,9 @@ module Parametrized where
     rec-⊗_ : (D : ConDesc Γ) → ConDesc Γ
   
 
-  data DatDesc (Γ : Ctx) : nat → Set where
-    ε : DatDesc Γ ze
-    _∣_ : ∀ {n} → (C : ConDesc Γ) → (D : DatDesc Γ n) → DatDesc Γ (su n)
+  data DatDesc (Γ : Ctx) : Nat → Set where
+    ε : DatDesc Γ 0
+    _∣_ : ∀ {n} → (C : ConDesc Γ) → (D : DatDesc Γ n) → DatDesc Γ (suc n)
 
   lookup : ∀ {Γ n} → DatDesc Γ n → fin n → ConDesc Γ
   lookup (C ∣ D) ze     = C
@@ -241,7 +241,7 @@ module Parametrized where
     ⟨_⟩ : ⟦ D ⟧d γ (μ D γ) → μ D γ
   
 
-  listD : DatDesc (ε ▷′ Set) (su (su ze))
+  listD : DatDesc (ε ▷′ Set) 2
   listD = ι ∣ snd ⊗ rec-⊗ ι ∣ ε
 
   list : Set → Set
@@ -253,8 +253,8 @@ module Parametrized where
   cons : ∀ {A} → A → list A → list A
   cons x xs = ⟨ su ze , x , xs , tt ⟩
 
-  t : list nat
-  t = cons (su ze) (cons ze nil)
+  t : list Nat
+  t = cons 1 (cons 0 nil)
 
 
 module Indexed where
@@ -269,9 +269,9 @@ module Indexed where
     _⊗_    : (S : ⟦ Γ ⟧Ctx → Set) → (D : ConDesc (Γ ▷ S) I) → ConDesc Γ I
     rec_⊗_ : (r : ⟦ Γ ⟧Ctx → ⟦ I ⟧Ctx) → (D : ConDesc Γ I) → ConDesc Γ I
 
-  data DatDesc (Γ : Ctx) (I : Ctx) : nat → Set where
-    ε   : DatDesc Γ I ze
-    _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
+  data DatDesc (Γ : Ctx) (I : Ctx) : Nat → Set where
+    ε   : DatDesc Γ I 0
+    _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (suc n)
 
   rec′_⊗_ : ∀ {Γ S I i} (r : ⟦ Γ ⟧Ctx → S) → (D : ConDesc Γ (I ▷ const S)) → ConDesc Γ (I ▷ const S)
   rec′_⊗_  {i = i} r D = rec (λ γ → i , r γ) ⊗ D
@@ -362,7 +362,7 @@ module Indexed where
 
   module Sample where
 
-    natD : DatDesc ε ε (su (su ze))
+    natD : DatDesc ε ε 2
     natD = ι (const tt)
          ∣ rec const tt ⊗ ι (const tt)
          ∣ ε
@@ -384,7 +384,7 @@ module Indexed where
       _≟_ {{Eqμnat}} = deq eqnadw
 
 
-    listD : DatDesc (ε ▷′ Set) ε (su (su ze))
+    listD : DatDesc (ε ▷′ Set) ε 2
     listD = ι (const tt)
           ∣ snd ⊗ rec const tt ⊗ ι (const tt)
           ∣ ε
@@ -406,7 +406,7 @@ module Indexed where
       _≟_ {{Eqμlist {A} {r}}} = deq (eqlistw {A} {r})
 
 
-    vecD : DatDesc (ε ▷′ Set) (ε ▷′ `nat) (su (su ze))
+    vecD : DatDesc (ε ▷′ Set) (ε ▷′ `nat) 2
     vecD = ι′ (const `ze)
          ∣ const `nat ⊗ snd ∘ fst ⊗ rec′ (snd ∘ fst) ⊗ ι′ (`su ∘ snd ∘ fst)
          ∣ ε
@@ -428,7 +428,7 @@ module Indexed where
       _≟_ {{Eqμvec {A} {r = r}}} = deq (eqvecw {A} {r})
 
 
-    finD : DatDesc ε (ε ▷′ `nat) (su (su ze))
+    finD : DatDesc ε (ε ▷′ `nat) 2
     finD = const `nat ⊗ ι′ (`su ∘ snd)
          ∣ const `nat ⊗ rec′ snd ⊗ ι′ (`su ∘ snd)
          ∣ ε
@@ -449,7 +449,6 @@ module Automated where
   open import Agda.Builtin.Reflection hiding (nat)
   open import Agda.Builtin.List
   open import Agda.Builtin.Bool
-  open import Agda.Builtin.Nat
   import Agda.Builtin.Equality
   open import Agda.Builtin.TrustMe
   open Parametrized using (Ctx; ⟦_⟧Ctx; ε)
@@ -458,7 +457,7 @@ module Automated where
 
   record HasDesc (A : Set) : Set where
     field
-      {n}  : nat
+      {n}  : Nat
       {Γ} {I} : Ctx
       desc : DatDesc Γ I n
       {γ}    : ⟦ Γ ⟧Ctx
@@ -472,25 +471,25 @@ module Automated where
 
   instance
     {-# TERMINATING #-}
-    natHasDesc : HasDesc nat
+    natHasDesc : HasDesc Nat
     Γ    {{natHasDesc}} = ε
     I    {{natHasDesc}} = ε
-    n    {{natHasDesc}} = su (su ze)
+    n    {{natHasDesc}} = 2
     desc {{natHasDesc}} = natD
     γ    {{natHasDesc}} = tt
     i    {{natHasDesc}} = tt
 
     to ⦃ natHasDesc ⦄ = λ where
-      ze     → `ze 
-      (su n) → `su (to n)
+      0       → `ze 
+      (suc n) → `su (to n)
 
     from ⦃ natHasDesc ⦄ = λ where
-      ⟨ ze , refl ⟩        → ze
-      ⟨ su ze , n , refl ⟩ → su (from n)
+      ⟨ ze , refl ⟩        → 0
+      ⟨ su ze , n , refl ⟩ → suc (from n)
 
     from∘to ⦃ natHasDesc ⦄ = λ where
-      ze     → refl
-      (su n) → cong su (from∘to n)
+      0      → refl
+      (suc n) → cong suc (from∘to n)
 
     to∘from ⦃ natHasDesc ⦄ = λ where
       ⟨ ze , refl ⟩        → refl
@@ -509,7 +508,7 @@ module Automated where
     _≟_ {{eqName}} x y with primQNameEquality x y
     ... | true  = yes (converteq (primTrustMe {x = x} {y = y}))
     ... | false = no λ x≡y → trustme
-        where postulate trustme : ⊥
+        where postulate trustme : _
     
   {-
   data ConDesc (Γ : Ctx) (I : Ctx) : Set where
@@ -522,45 +521,127 @@ module Automated where
     _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
     -}
 
-  conDesc : Term → TC Term
-  conDesc (pi (arg _ t) (abs _ rt)) = do
-    rest ← conDesc rt
+  conDesc : (dn : Name) → Term → TC Term
+  conDesc dn (pi (arg _ t) (abs _ rt)) = do
+    rest ← conDesc dn rt
     case t of λ where
-      _ → return (con (quote ConDesc._⊗_) ( arg (arg-info visible relevant) (lam visible (abs "γ" (t)))
-                                          ∷ arg (arg-info visible relevant) rest
-                                          ∷ []))
+      (def dn args) →
+        return (con (quote ConDesc.rec_⊗_)
+                    -- TODO: take care of indices
+                    ( arg (arg-info visible relevant) (lam visible (abs "γ" (quoteTerm ⊤.tt)))
+                    ∷ arg (arg-info visible relevant) rest
+                    ∷ []))
+      _ →
+        return (con (quote ConDesc._⊗_)
+                    ( arg (arg-info visible relevant) (lam visible (abs "γ" t))
+                    ∷ arg (arg-info visible relevant) rest
+                    ∷ []))
 
-  conDesc _ = return
-    (con (quote ConDesc.ι) ( arg (arg-info visible relevant)
-                                 (lam visible (abs "γ" (con (quote ⊤.tt) [])))
-                           ∷ []))
+  conDesc dn _ =
+    return (con (quote ConDesc.ι)
+                -- TODO: take care of indices
+                ( arg (arg-info visible relevant) (lam visible (abs "γ" (con (quote ⊤.tt) [])))
+                ∷ []))
 
-  makeDesc : List Name → TC Term
-  makeDesc []       = return (con (quote DatDesc.ε) [])
-  makeDesc (x ∷ xs) = do
-    descxs ← makeDesc xs
+  makeDesc : (dn : Name) → List Name → TC Term
+  makeDesc dn []       = return (con (quote DatDesc.ε) [])
+  makeDesc dn (x ∷ xs) = do
+    descxs ← makeDesc dn xs
     ct     ← getType x
-    descx  ← conDesc ct
-    return (con (quote DatDesc._∣_) ( arg (arg-info hidden relevant) unknown
-                                    ∷ arg (arg-info visible relevant) descx
-                                    ∷ arg (arg-info visible relevant) descxs
-                                    ∷ []))
+    descx  ← conDesc dn ct
+    return (con (quote DatDesc._∣_)
+                ( arg (arg-info hidden relevant) unknown
+                ∷ arg (arg-info visible relevant) descx
+                ∷ arg (arg-info visible relevant) descxs
+                ∷ []))
 
   deriveDesc : Name → Nat → List Name → TC Term
   deriveDesc d n cs = do
-    desc ← makeDesc cs
+    desc ← makeDesc d cs
     return desc
 
   macro
-    inspect : Name → Term →  TC ⊤
-    inspect d hole = do
+    derive-desc : Name → Term →  TC ⊤
+    derive-desc d hole = do
       x ← getDefinition d
       case x of λ where
         (data-type n cs) → deriveDesc d n cs >>= unify hole
         _                → typeError (strErr "Argument is not a datatype." ∷ [])
 
-  d : DatDesc ε ε _
-  d = inspect nat
+  module Test where
+    d : DatDesc ε ε _
+    d = derive-desc Nat
+
+    test : d ≡ natD
+    test = refl
+
+
+  hr : Term → Arg Term
+  hr t = arg (arg-info hidden relevant) t
+
+  vr : Term → Arg Term
+  vr t = arg (arg-info visible relevant) t
+
+  uhr : Arg Term
+  uhr = hr unknown
+
+  uvr : Arg Term
+  uvr = vr unknown
+
+  pair : Term → Term → Term
+  pair a b = con (quote Σ._,_)
+             ( uhr ∷ uhr ∷ uhr ∷ uhr
+             ∷ vr a
+             ∷ vr b
+             ∷ [])
+
+  makeClause : Nat → Name → Term → TC Clause
+  makeClause n cn cd = do
+    ct ← getType cn
+    return (clause (arg (arg-info visible relevant) (con cn []) ∷ [])
+                   (con (quote μ.⟨_⟩)
+                        ( arg (arg-info visible relevant)
+                              (pair (con (quote fin.ze) (hr (lit (Literal.nat 1)) ∷ []))
+                                    (con (quote _≡_.refl) ([]))) ∷  [])))
+
+  makeClauses : Nat → List Name → Term → TC (List Clause)
+  makeClauses n (x ∷ xs) D@(con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
+    cl  ← makeClause n x dx
+    cls ← makeClauses n xs D
+    return (cl ∷ cls)
+
+  makeClauses _ [] ({- con (quote DatDesc.ε) []-}_) = return []
+  makeClauses _ _ _ = typeError (strErr "Ill-formed description for datatype." ∷ [])
+
+  derive-to : Name → Name → TC ⊤
+  derive-to fname dat = do
+    xdat ← getDefinition dat
+    case xdat of λ where
+      (data-type n cs) → do
+        xdes  ← deriveDesc dat n cs
+
+        declareDef (arg (arg-info visible relevant) fname)
+                   (pi (arg (arg-info visible relevant) (def dat []))
+                       (abs "x" (def ((quote μ))
+                                ( arg (arg-info hidden relevant) unknown
+                                ∷ arg (arg-info hidden relevant) unknown
+                                ∷ arg (arg-info hidden relevant) unknown
+                                ∷ arg (arg-info visible relevant) xdes
+                                ∷ arg (arg-info visible relevant) (con (quote ⊤.tt) [])
+                                ∷ arg (arg-info visible relevant) (con (quote ⊤.tt) [])
+                                ∷ []))))
+
+        clauses ← makeClauses n cs xdes
+
+        defineFun fname clauses
+
+      _ → typeError (strErr "Argument is not a datatype." ∷ [])
+  
+  data Truc : Set where
+    tt ff : Truc
+
+  unquoteDecl ton = derive-to ton (quote Truc)
+    
 
 open import Agda.Builtin.Reflection public hiding (nat)
 open import Agda.Builtin.Bool public
