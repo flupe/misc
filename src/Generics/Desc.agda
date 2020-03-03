@@ -22,6 +22,8 @@ data ConDesc {ℓ} (I : Set (lsuc ℓ)) : Set (lsuc ℓ) where
 ⟦ κ k   ⟧ᶜ X i = k ≡ i
 ⟦ π S D ⟧ᶜ X i = Σ[ s ∈ S ] (⟦ D s ⟧ᶜ X i)
 
+syntax π A (λ s → D) = π[ s ∈ A ] D
+
 instance
   CS : ∀ {ℓ} {I : Set (lsuc ℓ)} → Semantics {b = lsuc (lsuc ℓ)} (ConDesc {ℓ} I)
   CS = record { ⟦_⟧ = ⟦_⟧ᶜ }
@@ -41,19 +43,3 @@ instance
 data μ {ℓ n} {I : Set (lsuc ℓ)} (D : Desc I n) (γ : I) : Set (lsuc ℓ) where
   ⟨_⟩ : ⟦ D ⟧ (μ D) γ → μ D γ
 
-
-module Test where
-
-  vecD : ∀ {a} (A : Set a) → Desc {a} Nat 2
-  vecD A = κ 0
-         ∷ π Nat (λ n → π A (λ x → ι n (κ (suc n))))
-         ∷ []
-  
-  vec : ∀ {a} (A : Set a) → Nat → Set (lsuc a)
-  vec A = μ (vecD A)
-  
-  nil : ∀ {a} {A : Set a} → vec A 0
-  nil = ⟨ ze , refl ⟩
-  
-  cons : ∀ {a n} {A : Set a} → A → vec A n → vec A (suc n)
-  cons {n = n} x xs = ⟨ su ze , n , x , xs , refl ⟩

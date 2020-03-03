@@ -59,3 +59,6 @@ a >> b = a >>= (const b)
 
 data Lift {a b} (A : Set a) : Set (a ⊔ b) where
   lift : A → Lift A
+
+cong : ∀ {a b} {A : Set a} {B : Set b} (f : A → B) {x y : A} → x ≡ y → f x ≡ f y
+cong f refl = refl
