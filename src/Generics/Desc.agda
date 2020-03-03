@@ -33,7 +33,7 @@ Desc : ∀ {ℓ} (I : Set (lsuc ℓ)) → Nat → Set (lsuc ℓ)
 Desc {ℓ} I = Vec {lsuc ℓ} (ConDesc I)
 
 ⟦_⟧ᵈ : ∀ {ℓ n} {I : Set (lsuc ℓ)} → Desc I n → (I → Set (lsuc ℓ)) → I → Set (lsuc ℓ)
-⟦_⟧ᵈ {n = n} D X i = Σ[ k ∈ Fin n ] (⟦ lookup D k ⟧ X i)
+⟦_⟧ᵈ {n = n} D X i = Σ[ k ∈ Fin n ] (⟦ indexVec D k ⟧ X i)
 
 instance
   DS : ∀ {ℓ n} {I : Set (lsuc ℓ)} → Semantics {b = lsuc (lsuc ℓ)} (Desc {ℓ} I n)
