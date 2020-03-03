@@ -20,22 +20,22 @@ module NatDesc where
   nat = μ natD tt
   
   ze′ : nat
-  ze′ = ⟨ ze , refl ⟩
+  ze′ = ⟨ zero , refl ⟩
   
   su′ : nat → nat
-  su′ n = ⟨ su ze , n , refl ⟩
+  su′ n = ⟨ suc zero , n , refl ⟩
   
   to′ : Nat → nat
   to′ zero    = ze′
   to′ (suc n) = su′ (to′ n)
   
   from′ : nat → Nat
-  from′ ⟨ ze , refl ⟩        = zero
-  from′ ⟨ su ze , n , refl ⟩ = suc (from′ n)
+  from′ ⟨ zero , refl ⟩        = zero
+  from′ ⟨ suc zero , n , refl ⟩ = suc (from′ n)
   
   to∘from : ∀ x → to′ (from′ x) ≡ x
-  to∘from ⟨ ze , refl ⟩        = refl
-  to∘from ⟨ su ze , n , refl ⟩ = cong (λ n′ → ⟨ su ze , n′ , refl ⟩) (to∘from n)
+  to∘from ⟨ zero , refl ⟩        = refl
+  to∘from ⟨ suc zero , n , refl ⟩ = cong (λ n′ → ⟨ suc zero , n′ , refl ⟩) (to∘from n)
   
   from∘to : ∀ x → from′ (to′ x) ≡ x
   from∘to zero    = refl
@@ -53,23 +53,23 @@ module VecDesc {a} (A : Set a) where
   vec = μ vecD
   
   nil′ : vec 0
-  nil′ = ⟨ ze , refl ⟩
+  nil′ = ⟨ zero , refl ⟩
   
   cons′ : ∀ {n} → A → vec n → vec (suc n)
-  cons′ {n = n} x xs = ⟨ su ze , n , x , xs , refl ⟩
+  cons′ {n = n} x xs = ⟨ suc zero , n , x , xs , refl ⟩
 
   to : ∀ {n} → Vec A n → vec n
   to []       = nil′
   to (x ∷ xs) = cons′ x (to xs)
 
   from : ∀ {n} → vec n → Vec A n
-  from ⟨ ze , refl ⟩ = []
-  from ⟨ su ze , n , x , xs , refl ⟩ = x ∷ from xs
+  from ⟨ zero , refl ⟩ = []
+  from ⟨ suc zero , n , x , xs , refl ⟩ = x ∷ from xs
 
   to∘from : ∀ {n} (x : vec n) → to (from x) ≡ x
-  to∘from ⟨ ze , refl ⟩ = refl
-  to∘from ⟨ su ze , n , x , xs , refl ⟩ =
-    cong (λ xs′ → ⟨ su ze , n , x , xs′ , refl ⟩)
+  to∘from ⟨ zero , refl ⟩ = refl
+  to∘from ⟨ suc zero , n , x , xs , refl ⟩ =
+    cong (λ xs′ → ⟨ suc zero , n , x , xs′ , refl ⟩)
          (to∘from xs)
 
   from∘to : ∀ {n} (x : Vec A n) → from (to x) ≡ x

@@ -6,6 +6,7 @@ open import Agda.Builtin.Reflection
 open import Builtin.Reflection
 
 open import Tactic.Reflection
+open import Tactic.Reflection.DeBruijn
 
 open import Generics.Prelude
 open import Generics.Desc
@@ -37,15 +38,25 @@ uhr = hr unknown
 uvr : Arg Term
 uvr = vr unknown
 
+last : List (Arg Term) → Arg Term
+last [] = vr (con (quote Agda.Builtin.Unit.tt) [])
+last (x ∷ []) = x
+last (x ∷ xs) = last xs
+
+unwrap : ∀ {a} {A : Set a} → Maybe A → TC A
+unwrap nothing  = typeError (strErr "TODO" ∷ [])
+unwrap (just x) = returnTC x
+
 mkCon : Name → Nat → Type → TC Term
-mkCon t nb (def f args)  = return (con (quote ConDesc.κ) (vr (con (quote Agda.Builtin.Unit.tt) []) ∷ []))
+mkCon t nb (def f args)  = return (con (quote ConDesc.κ) (last args ∷ []))
 mkCon t nb (pi (arg i a) (abs n b)) = do
  case a of λ where
    (def f args) →
      case (t == f) of λ where
          (yes _) → do
               b′ ← mkCon t nb b
-              return (con (quote ConDesc.ι) (vr (con (quote Agda.Builtin.Unit.tt) []) ∷ vr b′ ∷ []))
+              b′ ← unwrap (strengthen 1 b′)
+              return (con (quote ConDesc.ι) (last args ∷ vr b′ ∷ []))
          (no  _) → do
               b′ ← mkCon t nb b
               return (con (quote ConDesc.π) (vr a ∷ vr (lam visible (abs n b′)) ∷ []))
@@ -54,12 +65,14 @@ mkCon t nb (pi (arg i a) (abs n b)) = do
 
 mkCon _ _ _ = typeError (strErr "Cannot convert type to constructor description." ∷ [])
 
+
 mkDesc : Name → Nat → List Name → TC Term
 mkDesc t nb [] = return (con (quote Vec.[]) [])
 mkDesc t nb (x ∷ xs) = do
   x′ ← getType x >>= mkCon t nb
   xs′ ← mkDesc t nb xs
   return (con (quote Vec._∷_) (vr x′ ∷ vr xs′ ∷ []))
+
 
 macro 
   deriveDesc : Name → Term → TC ⊤
@@ -68,3 +81,5 @@ macro
     case x of λ where
       (data-type pars cs) → mkDesc n pars cs >>= unify hole
       _ → typeError (strErr "Given argument is NOT a datatype." ∷ [])
+
+

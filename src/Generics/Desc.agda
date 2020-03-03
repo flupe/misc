@@ -28,7 +28,6 @@ instance
   CS : ∀ {ℓ} {I : Set (lsuc ℓ)} → Semantics {b = lsuc (lsuc ℓ)} (ConDesc {ℓ} I)
   CS = record { ⟦_⟧ = ⟦_⟧ᶜ }
 
-
 Desc : ∀ {ℓ} (I : Set (lsuc ℓ)) → Nat → Set (lsuc ℓ)
 Desc {ℓ} I = Vec {lsuc ℓ} (ConDesc I)
 
@@ -38,7 +37,6 @@ Desc {ℓ} I = Vec {lsuc ℓ} (ConDesc I)
 instance
   DS : ∀ {ℓ n} {I : Set (lsuc ℓ)} → Semantics {b = lsuc (lsuc ℓ)} (Desc {ℓ} I n)
   DS = record { ⟦_⟧ = ⟦_⟧ᵈ }
-
 
 data μ {ℓ n} {I : Set (lsuc ℓ)} (D : Desc I n) (γ : I) : Set (lsuc ℓ) where
   ⟨_⟩ : ⟦ D ⟧ (μ D) γ → μ D γ
