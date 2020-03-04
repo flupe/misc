@@ -9,14 +9,10 @@ open import Generics.Reflection
 
 module NatDesc where
 
-  natD : Desc {lzero} ⊤ 2
-  natD = κ tt
-       ∷ ι tt (κ tt)
-       ∷ []
+  natD : Desc ⊤ 2
+  natD = deriveDesc Nat
   
-  -- for now our encoding is one level too high
-  -- oh well
-  nat : Set₁
+  nat : Set
   nat = μ natD tt
   
   ze′ : nat
@@ -45,11 +41,9 @@ module NatDesc where
 module VecDesc {a} (A : Set a) where
 
   vecD : Desc {a} Nat 2
-  vecD = κ 0
-       ∷ π[ n ∈ Nat ] π[ x ∈ A ] ι n (κ (suc n))
-       ∷ []
+  vecD = deriveDesc (Vec {a} A)
   
-  vec : Nat → Set (lsuc a)
+  vec : Nat → Set a
   vec = μ vecD
   
   nil′ : vec 0
