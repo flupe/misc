@@ -21,6 +21,7 @@ module NatDesc where
   su′ : nat → nat
   su′ n = ⟨ suc zero , n , refl ⟩
   
+  -- TODO: AUTOMATE EVERYTHING
   to′ : Nat → nat
   to′ zero    = ze′
   to′ (suc n) = su′ (to′ n)
@@ -69,3 +70,34 @@ module VecDesc {a} (A : Set a) where
   from∘to : ∀ {n} (x : Vec A n) → from (to x) ≡ x
   from∘to []       = refl
   from∘to (x ∷ xs) = cong (x ∷_) (from∘to xs)
+
+
+module Operations where
+
+  open import Prelude.Show
+  open import Prelude.String
+
+  module Test {i n} {I : Set i} {D : Desc {i} I n} where
+
+    showCon  : {C : ConDesc I} {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → String
+    showDesc :                 {γ : I} → ⟦ D ⟧ᵈ (μ D) γ → String
+    showMu   :                 {γ : I} → μ D γ          → String
+
+    showCon {C = κ k  } refl    = ""
+    showCon {C = ι i D} (x , d) = showMu x <> showCon d
+    showCon {C = π S D} (s , d) = "X "     <> showCon d
+    -- are u kidding me where is the ^ show instance for X
+
+    showDesc (k , x) = "con" <> show k <> " " <> showCon x 
+
+    showMu ⟨ x ⟩ = showDesc x
+
+  instance
+    ShowCon : ∀ {i n} {I : Set i} {D : Desc I n} {γ : I} → Show {lsuc i} (μ D γ)
+    ShowCon = simpleShowInstance Test.showMu
+
+open NatDesc
+open VecDesc {lzero} Nat
+
+test₁ = su′ (su′ (su′ ze′))
+test₂ = cons′ 2 (cons′ 3 nil′)

@@ -25,7 +25,6 @@ record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
     to∘from : ∀ {i} (x : μ D i) → to (from x) ≡ x
     from∘to : ∀ {i} (x : A i)   → from (to x) ≡ x
 
-
 hr : ∀ {a} {A : Set a} → A → Arg A
 hr t = arg (arg-info hidden relevant) t
 
@@ -43,8 +42,8 @@ last [] = vr (con (quote Agda.Builtin.Unit.tt) [])
 last (x ∷ []) = x
 last (x ∷ xs) = last xs
 
--- | Unwrap the value of a Maybe A into TC A,
--- | fail with given error message if there is no value.
+-- | Unwraps the value of a Maybe A into TC A,
+-- | fails with given error message if there is no value.
 unwrap : ∀ {a} {A : Set a} → String → Maybe A → TC A
 unwrap msg nothing  = typeError (strErr msg ∷ [])
 unwrap _   (just x) = returnTC x
