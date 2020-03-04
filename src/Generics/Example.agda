@@ -77,27 +77,32 @@ module Operations where
   open import Prelude.Show
   open import Prelude.String
 
-  module Test {i n} {I : Set i} {D : Desc {i} I n} where
+  module ShowMu {i n} {I : Set i} {D : Desc {i} I n} {DI : DescInstance {j = i} Show D} where
+    mutual
+      showCon : {C : ConDesc {i} I} {CI : ConInstance {j = i} Show C} {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → String
+      showCon {C = κ k  } refl    = ""
+      showCon {C = ι i D} {CI} (x , d) = "(" <> showMu x <> ")" <> showCon {CI = CI} d
+      showCon {C = π S D} {CI = XI , SI} (s , d) = show ⦃ XI ⦄ s <> " " <> showCon {CI = SI s} d
 
-    showCon  : {C : ConDesc I} {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → String
-    showDesc :                 {γ : I} → ⟦ D ⟧ᵈ (μ D) γ → String
-    showMu   :                 {γ : I} → μ D γ          → String
+      showDesc : {γ : I} → ⟦ D ⟧ᵈ (μ D) γ → String
+      showDesc (k , x) = "con" <> show k <> " " <> showCon {CI = lookupAll DI k} x 
 
-    showCon {C = κ k  } refl    = ""
-    showCon {C = ι i D} (x , d) = showMu x <> showCon d
-    showCon {C = π S D} (s , d) = "X "     <> showCon d
-    -- are u kidding me where is the ^ show instance for X
-
-    showDesc (k , x) = "con" <> show k <> " " <> showCon x 
-
-    showMu ⟨ x ⟩ = showDesc x
+      showMu : {γ : I} → μ D γ → String
+      showMu ⟨ x ⟩ = showDesc x
 
   instance
-    ShowCon : ∀ {i n} {I : Set i} {D : Desc I n} {γ : I} → Show {lsuc i} (μ D γ)
-    ShowCon = simpleShowInstance Test.showMu
+    ShowCon : ∀ {i n} {I : Set i} {D : Desc {i} I n} {γ : I} ⦃ DI : DescInstance {j = i} Show D ⦄ → Show (μ D γ)
+    ShowCon ⦃ DI = DI ⦄ = simpleShowInstance (ShowMu.showMu {DI = DI})
 
 open NatDesc
 open VecDesc {lzero} Nat
 
-test₁ = su′ (su′ (su′ ze′))
-test₂ = cons′ 2 (cons′ 3 nil′)
+instance
+  NatI : DescInstance Show natD
+  NatI = unit ∷ unit ∷ []
+
+  VecI : DescInstance Show vecD
+  VecI = unit ∷ (ShowNat , const (ShowNat , (const unit))) ∷ []
+
+test1 = su′ (su′ (su′ ze′))
+test2 = cons′ 2 (cons′ 3 nil′)
