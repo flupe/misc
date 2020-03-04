@@ -12,7 +12,6 @@ open Semantics ⦃ ... ⦄
 
 
 data ConDesc {ℓ} (I : Set ℓ) : Set (lsuc ℓ) where
-  -- poor choice of naming
   κ : (k : I)                           → ConDesc I
   ι : (i : I)     → (D : ConDesc I)     → ConDesc I
   π : (S : Set ℓ) → (D : S → ConDesc I) → ConDesc I
@@ -40,20 +39,3 @@ instance
 
 data μ {i n} {I : Set i} (D : Desc I n) (γ : I) : Set i where
   ⟨_⟩ : ⟦ D ⟧ (μ D) γ → μ D γ
-
-
-data VecAll {a b} {A : Set a} (P : A → Set b) : {n : Nat} → Vec A n → Set (a ⊔ b) where
-  []  : VecAll P []
-  _∷_ : ∀ {n x xs} (p : P x) (ps : VecAll P {n} xs) → VecAll P (x ∷ xs)
-
-lookupAll : ∀ {a b n} {A : Set a} {P : A → Set b} {xs} (ps : VecAll P xs) (k : Fin n) → P (indexVec xs k)
-lookupAll (p ∷ ps) zero    = p
-lookupAll (p ∷ ps) (suc k) = lookupAll ps k
-
-ConInstance : ∀ {i j} (M : Set i → Set j) {I : Set i} (C : ConDesc I) → Set (i ⊔ j)
-ConInstance M (κ k)   = ⊤′
-ConInstance M (ι i D) = ConInstance M D
-ConInstance M (π S D) = M S × ((s : S) → ConInstance M (D s))
-
-DescInstance : ∀ {i j} (M : Set i → Set j) {n} {I : Set i} (D : Desc I n) → Set (lsuc i ⊔ j)
-DescInstance M {n} D = VecAll (ConInstance M) D

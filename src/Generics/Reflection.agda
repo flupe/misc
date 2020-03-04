@@ -13,6 +13,11 @@ open import Generics.Desc
 import Agda.Builtin.Unit
 open Agda.Builtin.Unit
 
+macro
+  debug : Term → Term → TC ⊤
+  debug t hole = do
+    t′ ← quoteTC t
+    typeError (termErr t′ ∷ [])
 
 record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
   field
@@ -24,6 +29,7 @@ record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
 
     to∘from : ∀ {i} (x : μ D i) → to (from x) ≡ x
     from∘to : ∀ {i} (x : A i)   → from (to x) ≡ x
+
 
 hr : ∀ {a} {A : Set a} → A → Arg A
 hr t = arg (arg-info hidden relevant) t
@@ -42,12 +48,18 @@ last [] = vr (con (quote Agda.Builtin.Unit.tt) [])
 last (x ∷ []) = x
 last (x ∷ xs) = last xs
 
+last′ : List (Arg Term) → Term
+last′ [] = con (quote Agda.Builtin.Unit.tt) []
+last′ (arg _ x ∷ []) = x
+last′ (x ∷ xs) = last′ xs
+
 -- | Unwraps the value of a Maybe A into TC A,
 -- | fails with given error message if there is no value.
 unwrap : ∀ {a} {A : Set a} → String → Maybe A → TC A
 unwrap msg nothing  = typeError (strErr msg ∷ [])
 unwrap _   (just x) = returnTC x
 
+-- TODO: rewrite this, it′s ugly and too verbose
 mkCon : Name → Nat → Type → TC Term
 mkCon t nb (def f args)  = return (con (quote ConDesc.κ) (last args ∷ []))
 mkCon t nb (pi (arg i a) (abs n b)) = do
@@ -90,3 +102,109 @@ macro
       (data-type pars cs) → mkDesc n params pars cs >>= unify hole
       _ → typeError (strErr "Given argument is NOT a datatype." ∷ [])
   deriveDesc _ _ = typeError (strErr "Given argument is NOT a datatype." ∷ [])
+
+
+module Deriving where
+
+  ConInstance : ∀ {i j} (M : Set i → Set j) {I : Set i} (C : ConDesc I) → Set (i ⊔ j)
+  ConInstance M (κ k)   = ⋆
+  ConInstance M (ι i D) = ConInstance M D
+  ConInstance M (π S D) = M S × ((s : S) → ConInstance M (D s))
+
+  DescInstance : ∀ {i j} (M : Set i → Set j) {n} {I : Set i} (D : Desc I n) → Set (lsuc i ⊔ j)
+  DescInstance M {n} D = VecAll (ConInstance M) D
+
+  mkTest′ : Name → (C : Term) → TC Term
+  mkTest′ M (con (quote ConDesc.κ) _) = return (con (quote ∗) [])
+  mkTest′ M (con (quote ConDesc.ι) (_ ∷ _ ∷ _ ∷ arg _ D ∷ [])) = mkTest′ M D
+
+  -- this will most likely only work for non-dependent signatures
+  mkTest′ M (con (quote ConDesc.π) (_ ∷ _ ∷ arg _ S ∷ arg _ (lam _ (abs x D)) ∷ [])) = do
+    ist  ← checkType unknown (def M (vr S ∷ []))
+    rest ← mkTest′ M D
+    return (con (quote _,_) (vr ist ∷ vr (lam visible (abs x rest)) ∷ []))
+
+  mkTest′ _ x = typeError (strErr "Ill-formed constructor." ∷ termErr x ∷ [])
+
+  mkTest : ∀ {i} (M : Name) {n} {I : Set i} (D : Desc I n) → TC Term
+  mkTest M {zero} [] = return (con (quote VecAll.[]) [])
+  mkTest M {suc n} (C ∷ D) = do
+    C′ ← quoteTC C >>=′ mkTest′ M
+    D′ ← mkTest M D
+    return (con (quote VecAll._∷_) (vr C′ ∷ vr D′ ∷ []))
+
+  macro
+    deriveDescInstance : ∀ {i} (M : Name) {n} {I : Set i} (D : Desc I n) → Term → TC ⊤
+    deriveDescInstance M D hole = do
+      ist ← mkTest M D
+      unify ist hole
+
+  module Common where
+  
+    open import Prelude.Show
+    open import Prelude.String
+    open import Prelude.Equality
+  
+
+    module ShowMu {i n} {I : Set i} {D : Desc {i} I n} {DI : DescInstance Show D} where
+      mutual
+        showCon : {C : ConDesc {i} I} {CI : ConInstance Show C} {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → String
+        showCon {C = κ k  } refl    = ""
+        showCon {C = ι i D} {CI} (x , d) = " (" <> showMu x <> ")" <> showCon {CI = CI} d
+        showCon {C = π S D} {CI = XI , SI} (s , d) = " " <> show ⦃ XI ⦄ s <> showCon {CI = SI s} d
+  
+        showDesc : {γ : I} → ⟦ D ⟧ᵈ (μ D) γ → String
+        showDesc (k , x) = "con" <> show k <> showCon {CI = lookupAll DI k} x 
+  
+        showMu : {γ : I} → μ D γ → String
+        showMu ⟨ x ⟩ = showDesc x
+  
+    instance
+      ShowCon : ∀ {i n} {I : Set i} {D : Desc I n} {γ : I} ⦃ DI : DescInstance Show D ⦄ → Show (μ D γ)
+      ShowCon ⦃ DI ⦄ = simpleShowInstance (ShowMu.showMu {DI = DI})
+  
+
+    module EqMu {i n} {I : Set i} {D : Desc I n} {DI : DescInstance Eq D} where
+  
+      private
+          Σeq₁ : ∀ {a b} {A : Set a} {B : A → Set b} {x y : Σ A B}
+               → x ≡ y → fst x ≡ fst y
+          Σeq₁ refl = refl
+  
+          Σeq₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
+               → _≡_ {A = Σ A B} (s , x) (s , y) → x ≡ y
+          Σeq₂ refl = refl
+  
+          Σeqinj₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
+               → x ≡ y → _≡_  {A = Σ A B} (s , x) (s , y)
+          Σeqinj₂ refl = refl
+  
+          Σdeqinj₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
+               → Dec (x ≡ y) → Dec (_≡_ {A = Σ A B} (s , x) (s , y))
+          Σdeqinj₂ (yes x≡y) = yes (Σeqinj₂ x≡y)
+          Σdeqinj₂ {a} {b} (no x≢y) = no (_∘_ {a ⊔ b} x≢y Σeq₂)
+  
+      mutual
+        eqCon : {C : ConDesc I} {CI : ConInstance Eq C} {γ : I}
+              → (x y : ⟦ C ⟧ᶜ (μ D) γ) → Dec (x ≡ y)
+        eqCon {C = κ k } refl refl = yes refl
+  
+        eqCon {C = ι r D} {CI} (x₁ , d₁) (x₂ , d₂) with eqMu x₁ x₂
+        ... | no x₁≢x₂ = no (_∘_ {i} x₁≢x₂ Σeq₁)
+        ... | yes refl = Σdeqinj₂ (eqCon {CI = CI} d₁ d₂)
+  
+        eqCon {C = π S D} {CI = XI , SI} (s₁ , d₁) (s₂ , d₂) with _==_ ⦃ XI ⦄ s₁ s₂
+        ... | no s₁≢s₂ = no (_∘_ {i} s₁≢s₂ Σeq₁)
+        ... | yes refl =  Σdeqinj₂ (eqCon {CI = SI s₁} d₁ d₂)
+  
+        eqDesc : {γ : I} → (x y : ⟦ D ⟧ᵈ (μ D) γ) → Dec (x ≡ y)
+        eqDesc (k₁ , x) (k₂ , y) with k₁ == k₂
+        eqDesc (k₁ , x) (k₂ , y) | no k₁≢k₂ = no (k₁≢k₂ ∘ Σeq₁)
+        eqDesc (k₁ , x) (k₂ , y) | yes refl = Σdeqinj₂ (eqCon {CI = lookupAll DI k₁} x y)
+  
+        eqMu : {γ : I} → (x y : μ D γ) → Dec (x ≡ y)
+        eqMu ⟨ x ⟩ ⟨ y ⟩ = decEq₁ (λ where refl → refl) (eqDesc x y)
+  
+    instance
+      EqCon : ∀ {i n} {I : Set i} {D : Desc I n} {γ : I} ⦃ DI : DescInstance Eq D ⦄ → Eq (μ D γ)
+      _==_ ⦃ EqCon ⦃ DI ⦄ ⦄ = EqMu.eqMu {DI = DI}

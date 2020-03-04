@@ -6,6 +6,8 @@ open import Generics.Prelude
 open import Generics.Desc
 open import Generics.Reflection
 
+open Generics.Reflection.Deriving
+open Generics.Reflection.Deriving.Common
 
 module NatDesc where
 
@@ -71,38 +73,53 @@ module VecDesc {a} (A : Set a) where
   from∘to []       = refl
   from∘to (x ∷ xs) = cong (x ∷_) (from∘to xs)
 
-
-module Operations where
-
-  open import Prelude.Show
-  open import Prelude.String
-
-  module ShowMu {i n} {I : Set i} {D : Desc {i} I n} {DI : DescInstance {j = i} Show D} where
-    mutual
-      showCon : {C : ConDesc {i} I} {CI : ConInstance {j = i} Show C} {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → String
-      showCon {C = κ k  } refl    = ""
-      showCon {C = ι i D} {CI} (x , d) = "(" <> showMu x <> ")" <> showCon {CI = CI} d
-      showCon {C = π S D} {CI = XI , SI} (s , d) = show ⦃ XI ⦄ s <> " " <> showCon {CI = SI s} d
-
-      showDesc : {γ : I} → ⟦ D ⟧ᵈ (μ D) γ → String
-      showDesc (k , x) = "con" <> show k <> " " <> showCon {CI = lookupAll DI k} x 
-
-      showMu : {γ : I} → μ D γ → String
-      showMu ⟨ x ⟩ = showDesc x
-
-  instance
-    ShowCon : ∀ {i n} {I : Set i} {D : Desc {i} I n} {γ : I} ⦃ DI : DescInstance {j = i} Show D ⦄ → Show (μ D γ)
-    ShowCon ⦃ DI = DI ⦄ = simpleShowInstance (ShowMu.showMu {DI = DI})
-
 open NatDesc
 open VecDesc {lzero} Nat
 
+data Tree : Set where
+  leaf : Tree
+  node : Tree → Tree → Tree
+
+treeD : Desc ⊤ 2
+treeD = deriveDesc Tree
+
+tree : Set
+tree = μ treeD tt
+
+leaf′ : tree
+leaf′ = ⟨ zero , refl ⟩
+
+node′ : tree → tree → tree
+node′ l r = ⟨ suc zero , l , r , refl ⟩
+
+finD : Desc {lzero} Nat 2
+finD = deriveDesc Fin
+
 instance
-  NatI : DescInstance Show natD
-  NatI = unit ∷ unit ∷ []
+  ShowNatD : DescInstance Show natD
+  ShowNatD = deriveDescInstance Show natD
 
-  VecI : DescInstance Show vecD
-  VecI = unit ∷ (ShowNat , const (ShowNat , (const unit))) ∷ []
+  ShowTreeD : DescInstance Show treeD
+  ShowTreeD = deriveDescInstance Show treeD
 
-test1 = su′ (su′ (su′ ze′))
-test2 = cons′ 2 (cons′ 3 nil′)
+  EqNatD : DescInstance Eq natD
+  EqNatD = deriveDescInstance Eq natD
+
+  EqTreeD : DescInstance Eq treeD
+  EqTreeD = deriveDescInstance Eq treeD
+
+  ShowFinD : DescInstance Show finD
+  ShowFinD = deriveDescInstance Show finD
+
+  ShowVecD : DescInstance Show vecD
+  ShowVecD = deriveDescInstance Show vecD
+
+nat1 = su′ (su′ (su′ ze′))
+nat2 = su′ (su′ ze′)
+
+test1 : (nat1 == nat2) ≡ no _
+test1 = refl
+
+tree1 = node′ (node′ leaf′ (node′ leaf′ leaf′)) (node′ (node′ leaf′ leaf′) leaf′)
+
+vec1 = cons′ 2 (cons′ 3 nil′)
