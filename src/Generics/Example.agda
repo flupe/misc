@@ -95,30 +95,8 @@ node′ l r = ⟨ suc zero , l , r , refl ⟩
 finD : Desc {lzero} Nat 2
 finD = deriveDesc Fin
 
-instance
-  ShowNatD : DescInstance Show natD
-  ShowNatD = deriveDescInstance Show natD
-
-  ShowTreeD : DescInstance Show treeD
-  ShowTreeD = deriveDescInstance Show treeD
-
-  EqNatD : DescInstance Eq natD
-  EqNatD = deriveDescInstance Eq natD
-
-  EqTreeD : DescInstance Eq treeD
-  EqTreeD = deriveDescInstance Eq treeD
-
-  ShowFinD : DescInstance Show finD
-  ShowFinD = deriveDescInstance Show finD
-
-  ShowVecD : DescInstance Show vecD
-  ShowVecD = deriveDescInstance Show vecD
-
 nat1 = su′ (su′ (su′ ze′))
 nat2 = su′ (su′ ze′)
-
-test1 : (nat1 == nat2) ≡ no _
-test1 = refl
 
 tree1 = node′ (node′ leaf′ (node′ leaf′ leaf′)) (node′ (node′ leaf′ leaf′) leaf′)
 

@@ -12,6 +12,7 @@ open import Generics.Desc
 
 import Agda.Builtin.Unit
 open Agda.Builtin.Unit
+open import Prelude.Function using (it)
 
 macro
   debug : Term → Term → TC ⊤
@@ -33,6 +34,9 @@ record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
 
 hr : ∀ {a} {A : Set a} → A → Arg A
 hr t = arg (arg-info hidden relevant) t
+
+ir : ∀ {a} {A : Set a} → A → Arg A
+ir t = arg (arg-info instance′ relevant) t
 
 vr : ∀ {a} {A : Set a} → A → Arg A
 vr t = arg (arg-info visible relevant) t
@@ -114,30 +118,28 @@ module Deriving where
   DescInstance : ∀ {i j} (M : Set i → Set j) {n} {I : Set i} (D : Desc I n) → Set (lsuc i ⊔ j)
   DescInstance M {n} D = VecAll (ConInstance M) D
 
-  mkTest′ : Name → (C : Term) → TC Term
-  mkTest′ M (con (quote ConDesc.κ) _) = return (con (quote ∗) [])
-  mkTest′ M (con (quote ConDesc.ι) (_ ∷ _ ∷ _ ∷ arg _ D ∷ [])) = mkTest′ M D
 
-  -- this will most likely only work for non-dependent signatures
-  mkTest′ M (con (quote ConDesc.π) (_ ∷ _ ∷ arg _ S ∷ arg _ (lam _ (abs x D)) ∷ [])) = do
-    ist  ← checkType unknown (def M (vr S ∷ []))
-    rest ← mkTest′ M D
-    return (con (quote _,_) (vr ist ∷ vr (lam visible (abs x rest)) ∷ []))
+  instance
+    κ-inst : ∀ {i j} {M : Set i → Set j} {I : Set i} {k : I} → ConInstance M (κ k)
+    κ-inst = ∗
 
-  mkTest′ _ x = typeError (strErr "Ill-formed constructor." ∷ termErr x ∷ [])
+    ι-inst : ∀ {i j} {M : Set i → Set j} {I : Set i} {r : I} {D : ConDesc I}
+           → ⦃ ConInstance M D ⦄ → ConInstance M (ι r D)
+    ι-inst ⦃ MD ⦄ = MD
 
-  mkTest : ∀ {i} (M : Name) {n} {I : Set i} (D : Desc I n) → TC Term
-  mkTest M {zero} [] = return (con (quote VecAll.[]) [])
-  mkTest M {suc n} (C ∷ D) = do
-    C′ ← quoteTC C >>=′ mkTest′ M
-    D′ ← mkTest M D
-    return (con (quote VecAll._∷_) (vr C′ ∷ vr D′ ∷ []))
+    π-inst : ∀ {i j} {M : Set i → Set j} {I : Set i} {S : Set i} {D : S → ConDesc I}
+           → ⦃ M S ⦄ → ⦃ ∀ {s} → ConInstance M (D s) ⦄
+           → ConInstance M (π S D)
+    π-inst ⦃ MS ⦄ ⦃ MD ⦄ = MS , λ s → MD
+    
+    desc-[]-inst : ∀ {i j} {M : Set i → Set j} {I : Set i} → DescInstance M {I = I} []
+    desc-[]-inst = []
 
-  macro
-    deriveDescInstance : ∀ {i} (M : Name) {n} {I : Set i} (D : Desc I n) → Term → TC ⊤
-    deriveDescInstance M D hole = do
-      ist ← mkTest M D
-      unify ist hole
+    desc-∷-inst : ∀ {i j} {M : Set i → Set j} {I : Set i} {n} {C : ConDesc I} {D : Desc I n}
+                → ⦃ ConInstance M C ⦄ → ⦃ DescInstance M D ⦄
+                → DescInstance M (C ∷ D)
+    desc-∷-inst ⦃ MC ⦄ ⦃ MD ⦄ = MC ∷ MD
+                
 
   module Common where
   
@@ -208,3 +210,4 @@ module Deriving where
     instance
       EqCon : ∀ {i n} {I : Set i} {D : Desc I n} {γ : I} ⦃ DI : DescInstance Eq D ⦄ → Eq (μ D γ)
       _==_ ⦃ EqCon ⦃ DI ⦄ ⦄ = EqMu.eqMu {DI = DI}
+
