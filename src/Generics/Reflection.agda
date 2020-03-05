@@ -14,15 +14,10 @@ import Agda.Builtin.Unit
 open Agda.Builtin.Unit
 open import Prelude.Function using (it)
 
-macro
-  debug : Term → Term → TC ⊤
-  debug t hole = do
-    t′ ← quoteTC t
-    typeError (termErr t′ ∷ [])
 
 record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
   field
-    n : Nat
+    {n} : Nat
     D : Desc {a} I n
 
     to   : ∀ {i} → A i → μ {a} D i
@@ -30,6 +25,7 @@ record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
 
     to∘from : ∀ {i} (x : μ D i) → to (from x) ≡ x
     from∘to : ∀ {i} (x : A i)   → from (to x) ≡ x
+open HasDesc ⦃ ... ⦄
 
 
 hr : ∀ {a} {A : Set a} → A → Arg A
@@ -111,9 +107,17 @@ macro
 module Deriving where
 
   ConInstance : ∀ {i j} (M : Set i → Set j) {I : Set i} (C : ConDesc I) → Set (i ⊔ j)
+
+  record ConΣ {i j} (M : Set i → Set j) {I : Set i} (S : Set i) (D : S → ConDesc I): Set (i ⊔ j) where
+    inductive
+    constructor _,_
+    field
+      ms : M S
+      md : (s : S) → ConInstance M (D s)
+
   ConInstance M (κ k)   = ⋆
   ConInstance M (ι i D) = ConInstance M D
-  ConInstance M (π S D) = M S × ((s : S) → ConInstance M (D s))
+  ConInstance M (π S D) = ConΣ M S D
 
   DescInstance : ∀ {i j} (M : Set i → Set j) {n} {I : Set i} (D : Desc I n) → Set (lsuc i ⊔ j)
   DescInstance M {n} D = VecAll (ConInstance M) D
@@ -150,8 +154,8 @@ module Deriving where
 
     module ShowMu {i n} {I : Set i} {D : Desc {i} I n} {DI : DescInstance Show D} where
       mutual
-        showCon : {C : ConDesc {i} I} {CI : ConInstance Show C} {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → String
-        showCon {C = κ k  } refl    = ""
+        showCon : {C : ConDesc I} {CI : ConInstance Show C} {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → String
+        showCon {C = κ k  } refl = ""
         showCon {C = ι i D} {CI} (x , d) = " (" <> showMu x <> ")" <> showCon {CI = CI} d
         showCon {C = π S D} {CI = XI , SI} (s , d) = " " <> show ⦃ XI ⦄ s <> showCon {CI = SI s} d
   
@@ -164,27 +168,27 @@ module Deriving where
     instance
       ShowCon : ∀ {i n} {I : Set i} {D : Desc I n} {γ : I} ⦃ DI : DescInstance Show D ⦄ → Show (μ D γ)
       ShowCon ⦃ DI ⦄ = simpleShowInstance (ShowMu.showMu {DI = DI})
-  
+
+    deriveShow : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc A ⦄ {γ : I}
+               → ⦃ E : Show (μ D γ) ⦄ → Show (A γ)
+    deriveShow A ⦃ H ⦄ ⦃ E ⦄ = simpleShowInstance (show ⦃ E ⦄ ∘ to)
+
 
     module EqMu {i n} {I : Set i} {D : Desc I n} {DI : DescInstance Eq D} where
   
       private
-          Σeq₁ : ∀ {a b} {A : Set a} {B : A → Set b} {x y : Σ A B}
-               → x ≡ y → fst x ≡ fst y
-          Σeq₁ refl = refl
+        Σeq₁ : ∀ {a b} {A : Set a} {B : A → Set b} {x y : Σ A B}
+             → x ≡ y → fst x ≡ fst y
+        Σeq₁ refl = refl
   
-          Σeq₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
-               → _≡_ {A = Σ A B} (s , x) (s , y) → x ≡ y
-          Σeq₂ refl = refl
+        Σeq₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
+             → _≡_ {A = Σ A B} (s , x) (s , y) → x ≡ y
+        Σeq₂ refl = refl
   
-          Σeqinj₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
-               → x ≡ y → _≡_  {A = Σ A B} (s , x) (s , y)
-          Σeqinj₂ refl = refl
-  
-          Σdeqinj₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
-               → Dec (x ≡ y) → Dec (_≡_ {A = Σ A B} (s , x) (s , y))
-          Σdeqinj₂ (yes x≡y) = yes (Σeqinj₂ x≡y)
-          Σdeqinj₂ {a} {b} (no x≢y) = no (_∘_ {a ⊔ b} x≢y Σeq₂)
+        Σdeqinj₂ : ∀ {a b} {A : Set a} {B : A → Set b} {s x y}
+             → Dec (x ≡ y) → Dec (_≡_ {A = Σ A B} (s , x) (s , y))
+        Σdeqinj₂ (yes x≡y) = yes (case x≡y of λ { refl → refl })
+        Σdeqinj₂ {a} {b} (no x≢y) = no (x≢y ∘ Σeq₂)
   
       mutual
         eqCon : {C : ConDesc I} {CI : ConInstance Eq C} {γ : I}
@@ -192,22 +196,27 @@ module Deriving where
         eqCon {C = κ k } refl refl = yes refl
   
         eqCon {C = ι r D} {CI} (x₁ , d₁) (x₂ , d₂) with eqMu x₁ x₂
-        ... | no x₁≢x₂ = no (_∘_ {i} x₁≢x₂ Σeq₁)
+        ... | no x₁≢x₂ = no (x₁≢x₂ ∘ Σeq₁)
         ... | yes refl = Σdeqinj₂ (eqCon {CI = CI} d₁ d₂)
   
         eqCon {C = π S D} {CI = XI , SI} (s₁ , d₁) (s₂ , d₂) with _==_ ⦃ XI ⦄ s₁ s₂
-        ... | no s₁≢s₂ = no (_∘_ {i} s₁≢s₂ Σeq₁)
+        ... | no s₁≢s₂ = no (s₁≢s₂ ∘ Σeq₁)
         ... | yes refl =  Σdeqinj₂ (eqCon {CI = SI s₁} d₁ d₂)
   
         eqDesc : {γ : I} → (x y : ⟦ D ⟧ᵈ (μ D) γ) → Dec (x ≡ y)
         eqDesc (k₁ , x) (k₂ , y) with k₁ == k₂
-        eqDesc (k₁ , x) (k₂ , y) | no k₁≢k₂ = no (k₁≢k₂ ∘ Σeq₁)
-        eqDesc (k₁ , x) (k₂ , y) | yes refl = Σdeqinj₂ (eqCon {CI = lookupAll DI k₁} x y)
+        ... | no k₁≢k₂ = no (k₁≢k₂ ∘ Σeq₁)
+        ... | yes refl = Σdeqinj₂ (eqCon {CI = lookupAll DI k₁} x y)
   
         eqMu : {γ : I} → (x y : μ D γ) → Dec (x ≡ y)
-        eqMu ⟨ x ⟩ ⟨ y ⟩ = decEq₁ (λ where refl → refl) (eqDesc x y)
+        eqMu ⟨ x ⟩ ⟨ y ⟩ = decEq₁ (λ { refl → refl }) (eqDesc x y)
   
     instance
       EqCon : ∀ {i n} {I : Set i} {D : Desc I n} {γ : I} ⦃ DI : DescInstance Eq D ⦄ → Eq (μ D γ)
       _==_ ⦃ EqCon ⦃ DI ⦄ ⦄ = EqMu.eqMu {DI = DI}
+
+    deriveEq : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc A ⦄ {γ : I}
+             → ⦃ E : Eq (μ D γ) ⦄ → Eq (A γ)
+    _==_ ⦃ deriveEq A ⦃ H ⦄ ⦃ E ⦄ ⦄ x y =
+      decEqIso {f = to} {g = from} from∘to (_==_ ⦃ E ⦄ (to x) (to y))
 

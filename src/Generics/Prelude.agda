@@ -26,3 +26,11 @@ data ⋆ {a} : Set a where
 lookupAll : ∀ {a b n} {A : Set a} {P : A → Set b} {xs} (ps : VecAll P xs) (k : Fin n) → P (indexVec xs k)
 lookupAll (p ∷ ps) zero    = p
 lookupAll (p ∷ ps) (suc k) = lookupAll ps k
+
+decEqIso : ∀ {a b} {A : Set a} {B : Set b} {f : A → B} {g : B → A}
+           (retract : ∀ x → g (f x) ≡ x)
+         → ∀ {x y} → Dec (f x ≡ f y)
+         → Dec (x ≡ y)
+decEqIso {g = g} retr {x} {y} (yes fx≡fy) =
+  yes (trans (sym (retr x)) (trans (cong g fx≡fy) (retr y)))
+decEqIso {f = f} retr (no fx≢fy) = no λ x≢y → fx≢fy (cong f x≢y)

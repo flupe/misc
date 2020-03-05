@@ -9,37 +9,66 @@ open import Generics.Reflection
 open Generics.Reflection.Deriving
 open Generics.Reflection.Deriving.Common
 
+
 module NatDesc where
 
+  data nat : ⊤ → Set where
+    ze : nat tt
+    su : nat tt → nat tt
+
   natD : Desc ⊤ 2
-  natD = deriveDesc Nat
+  natD = deriveDesc nat
   
-  nat : Set
-  nat = μ natD tt
+  nat′ : Set
+  nat′ = μ natD tt
   
-  ze′ : nat
+  ze′ : nat′
   ze′ = ⟨ zero , refl ⟩
   
-  su′ : nat → nat
+  su′ : nat′ → nat′
   su′ n = ⟨ suc zero , n , refl ⟩
   
-  -- TODO: AUTOMATE EVERYTHING
-  to′ : Nat → nat
-  to′ zero    = ze′
-  to′ (suc n) = su′ (to′ n)
+  to′ : nat tt → nat′
+  to′ ze     = ze′
+  to′ (su n) = su′ (to′ n)
   
-  from′ : nat → Nat
-  from′ ⟨ zero , refl ⟩        = zero
-  from′ ⟨ suc zero , n , refl ⟩ = suc (from′ n)
+  from′ : nat′ → nat tt
+  from′ ⟨ zero , refl ⟩        = ze
+  from′ ⟨ suc zero , n , refl ⟩ = su (from′ n)
   
   to∘from : ∀ x → to′ (from′ x) ≡ x
   to∘from ⟨ zero , refl ⟩        = refl
   to∘from ⟨ suc zero , n , refl ⟩ = cong (λ n′ → ⟨ suc zero , n′ , refl ⟩) (to∘from n)
   
   from∘to : ∀ x → from′ (to′ x) ≡ x
-  from∘to zero    = refl
-  from∘to (suc n) = cong suc (from∘to n)
+  from∘to ze     = refl
+  from∘to (su n) = cong su (from∘to n)
 
+  instance
+    natHasDesc : HasDesc nat
+    natHasDesc =
+      record { D = natD
+             ; to = to′
+             ; from = from′
+             ; to∘from = to∘from
+             ; from∘to = from∘to
+             }
+
+  instance
+    natEq : Eq (nat tt)
+    natEq = deriveEq nat
+
+    natShow : Show (nat tt)
+    natShow = deriveShow nat
+
+  n1 : nat tt
+  n1 = su (su ze)
+
+  n2 : nat tt
+  n2 = su (su (su ze))
+
+  check : (n1 == n2) ≡ no _
+  check = refl
 
 module VecDesc {a} (A : Set a) where
 
@@ -72,32 +101,3 @@ module VecDesc {a} (A : Set a) where
   from∘to : ∀ {n} (x : Vec A n) → from (to x) ≡ x
   from∘to []       = refl
   from∘to (x ∷ xs) = cong (x ∷_) (from∘to xs)
-
-open NatDesc
-open VecDesc {lzero} Nat
-
-data Tree : Set where
-  leaf : Tree
-  node : Tree → Tree → Tree
-
-treeD : Desc ⊤ 2
-treeD = deriveDesc Tree
-
-tree : Set
-tree = μ treeD tt
-
-leaf′ : tree
-leaf′ = ⟨ zero , refl ⟩
-
-node′ : tree → tree → tree
-node′ l r = ⟨ suc zero , l , r , refl ⟩
-
-finD : Desc {lzero} Nat 2
-finD = deriveDesc Fin
-
-nat1 = su′ (su′ (su′ ze′))
-nat2 = su′ (su′ ze′)
-
-tree1 = node′ (node′ leaf′ (node′ leaf′ leaf′)) (node′ (node′ leaf′ leaf′) leaf′)
-
-vec1 = cons′ 2 (cons′ 3 nil′)
