@@ -34,3 +34,20 @@ decEqIso : ∀ {a b} {A : Set a} {B : Set b} {f : A → B} {g : B → A}
 decEqIso {g = g} retr {x} {y} (yes fx≡fy) =
   yes (trans (sym (retr x)) (trans (cong g fx≡fy) (retr y)))
 decEqIso {f = f} retr (no fx≢fy) = no λ x≢y → fx≢fy (cong f x≢y)
+
+fin : (n : Nat) → Vec (Fin n) n
+fin zero    = []
+fin (suc n) = zero ∷ fmap suc (fin n)
+
+-- very inefficient (n²), oh well
+foldi : ∀ {a b n} {A : Set a} {B : Set b}
+      → (xs : Vec A n)
+      → (f : (k : Fin n) (x : A) → (x ≡ indexVec xs k) → B → B)
+      → B → B
+foldi {n = n} {A} {B} xs f e = 
+  foldi′ (fin n)
+  where
+    foldi′ : ∀ {m} → Vec (Fin n) m → B
+    foldi′ [] = e
+    foldi′ (k ∷ ks) = f k (indexVec xs k) refl (foldi′ ks)
+
