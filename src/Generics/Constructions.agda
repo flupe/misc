@@ -1,5 +1,3 @@
-{-# OPTIONS --cumulativity #-}
-
 module Generics.Constructions where
 
 open import Generics.Prelude
@@ -43,6 +41,7 @@ module _ {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A) where
   open HasDesc
 
   {- WITH CUMULATIVITY -}
+  {-
   unfold : ∀ {j} (P : {γ : I} → A γ → Set j) (C : ConDesc I)
        → (tie : {γ : I} → ⟦ C ⟧ᶜ (μ (D H)) γ → Set (i ⊔ j))
        → Set (i ⊔ j)
@@ -61,9 +60,9 @@ module _ {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A) where
   ind-type : ∀ {j} (P : {γ : I} → A γ → Set j) → Set (i ⊔ j)
   ind-type {j} P = foldi {lsuc i} {lsuc (i ⊔ j)} (D H) (con-type {j} P) ({γ : I} → (x : A γ) → P x)
 
+-}
 
   -- WITHOUT CUMULATIVITY
-  {-
 
   unfold : ∀ {j} (P : {γ : I} → A γ → Set j) (C : ConDesc I)
        → (tie : {γ : I} → ⟦ C ⟧ᶜ (μ (D H)) γ → Set (i ⊔ j))
@@ -78,9 +77,11 @@ module _ {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A) where
   con-type {j} P k C p T = unfold P C pack → T
     where 
     pack : {γ : I} → ⟦ C ⟧ᶜ (μ (D H)) γ → Set (i ⊔ j)
-    pack {γ} X = P {γ} (from H ⟨ (k , transport (λ C → ⟦ C ⟧ᶜ (μ (D H)) γ) p X) ⟩)
+    pack {γ} X = ⋆ {i ⊔ j} → P {γ} (from H ⟨ (k , transport (λ C → ⟦ C ⟧ᶜ (μ (D H)) γ) p X) ⟩)
             
   ind-type : ∀ {j} (P : {γ : I} → A γ → Set j) → Set (i ⊔ j)
   ind-type {j} P = foldi (D H) (con-type {j} P) ({γ : I} → (x : A γ) → P x)
 
-  --}
+-- elim : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc A ⦄
+--      → ∀ {j} (P : {γ : I} → A γ → Set j) → ind-type A H P
+-- elim A ⦃ H ⦄ P = {!!}

@@ -5,6 +5,7 @@ module Generics.Example where
 open import Generics.Prelude
 open import Generics.Desc
 open import Generics.Reflection
+open import Generics.Constructions
 
 open Generics.Reflection.Deriving
 open Generics.Reflection.Deriving.Common
@@ -52,6 +53,8 @@ module NatDesc where
              ; from = from′
              ; to∘from = to∘from
              ; from∘to = from∘to
+             ; constr = (λ { zero → ze ; (suc zero) → su })
+             ; constr-proof = λ { zero → refl ; (suc zero) → λ x → cong su (sym (from∘to x)) }
              }
 
   instance
@@ -101,3 +104,5 @@ module VecDesc {a} (A : Set a) where
   from∘to : ∀ {n} (x : Vec A n) → from (to x) ≡ x
   from∘to []       = refl
   from∘to (x ∷ xs) = cong (x ∷_) (from∘to xs)
+
+open NatDesc

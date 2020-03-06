@@ -12,8 +12,28 @@ open import Generics.Desc
 
 import Agda.Builtin.Unit
 open Agda.Builtin.Unit
-open import Prelude.Function using (it)
 
+
+private
+  con-type : ∀ {a} {I : Set a} (A : I → Set a) → ConDesc I → Set a
+  con-type A (κ γ)   = A γ 
+  con-type A (ι γ C) = A γ → con-type A C
+  con-type A (π S C) = (s : S) → con-type A (C s)
+
+  con-proof-type : ∀ {a n} {I : Set a} {A : I → Set a} {D : Desc I n} 
+             → (to : {γ : I} → A γ → μ D γ) (from : {γ : I} → μ D γ → A γ)
+             → (constr : (k : Fin n) → con-type A (indexVec D k))
+             → Fin n
+             → Set a
+  con-proof-type {a} {I = I} {A} {D} to from contr k = aux tie (contr k)
+    where
+      tie : {γ : I} → ⟦ indexVec D k ⟧ᶜ (μ D) γ → A γ → Set a
+      tie X′ X = X ≡ from ⟨ k , X′ ⟩
+  
+      aux : {C : ConDesc I} (tie : {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → A γ → Set a) → con-type A C → Set a
+      aux {κ γ}   tie c = tie refl c
+      aux {ι γ C} tie c = (x : A γ) → aux {C} (tie ∘ (to x ,_)) (c x)
+      aux {π S C} tie c = (s : S)   → aux {C s} (tie ∘ (s ,_)) (c s) 
 
 record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
   field
@@ -25,8 +45,14 @@ record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
 
     to∘from : ∀ {i} (x : μ D i) → to (from x) ≡ x
     from∘to : ∀ {i} (x : A i)   → from (to x) ≡ x
-open HasDesc ⦃ ... ⦄
 
+    -- | A map from a position in the datatype to the actual constructor
+    constr : (k : Fin n) → con-type A (indexVec D k)
+
+    -- | A proof that contr indeed holds the constructors of A
+    constr-proof : (k : Fin n) → con-proof-type to from constr k
+
+open HasDesc ⦃ ... ⦄
 
 hr : ∀ {a} {A : Set a} → A → Arg A
 hr t = arg (arg-info hidden relevant) t
