@@ -12,9 +12,9 @@ open Semantics ⦃ ... ⦄
 
 
 data ConDesc {ℓ} (I : Set ℓ) : Set (lsuc ℓ) where
-  κ : (k : I)                           → ConDesc I
-  ι : (i : I)     → (D : ConDesc I)     → ConDesc I
-  π : (S : Set ℓ) → (D : S → ConDesc I) → ConDesc I
+  κ : (γ : I)                           → ConDesc I
+  ι : (γ : I)     → (C : ConDesc I)     → ConDesc I
+  π : (S : Set ℓ) → (C : S → ConDesc I) → ConDesc I
 
 ⟦_⟧ᶜ : ∀ {ℓ} {I : Set ℓ} → ConDesc I → (I → Set ℓ) → I → Set ℓ
 ⟦ ι γ D ⟧ᶜ X i = X γ × ⟦ D ⟧ᶜ X i

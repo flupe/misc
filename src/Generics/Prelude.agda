@@ -35,19 +35,30 @@ decEqIso {g = g} retr {x} {y} (yes fx≡fy) =
   yes (trans (sym (retr x)) (trans (cong g fx≡fy) (retr y)))
 decEqIso {f = f} retr (no fx≢fy) = no λ x≢y → fx≢fy (cong f x≢y)
 
-fin : (n : Nat) → Vec (Fin n) n
-fin zero    = []
-fin (suc n) = zero ∷ fmap suc (fin n)
+data Members {a} : {n : Nat} → Vec (Set a) n → Set (lsuc a) where
+  []  : Members []
+  _∷_ : ∀ {n A AS} → A → Members {n = n} AS → Members (A ∷ AS)
 
--- very inefficient (n²), oh well
-foldi : ∀ {a b n} {A : Set a} {B : Set b}
-      → (xs : Vec A n)
-      → (f : (k : Fin n) (x : A) → (x ≡ indexVec xs k) → B → B)
-      → B → B
-foldi {n = n} {A} {B} xs f e = 
-  foldi′ (fin n)
+lookupMember : ∀ {a n} {xs : Vec (Set a) n} → Members xs → (k : Fin n) → indexVec xs k
+lookupMember (x ∷ xs) zero    = x
+lookupMember (x ∷ xs) (suc k) = lookupMember xs k
+
+curryMemberType : ∀ {a b n} {xs : Vec (Set a) n} {B : Set (a ⊔ b)}
+                → (f : Members xs → B) → Set (a ⊔ b)
+curryMemberType {a} {b} {xs = xs} {B} f = aux xs
   where
-    foldi′ : ∀ {m} → Vec (Fin n) m → B
-    foldi′ [] = e
-    foldi′ (k ∷ ks) = f k (indexVec xs k) refl (foldi′ ks)
+    aux : ∀ {n} → Vec (Set a) n → Set (a ⊔ b)
+    aux []       = B
+    aux (A ∷ AS) = A → aux AS
 
+
+curryMember : ∀ {a b n} {xs : Vec (Set a) n} {B : Set (a ⊔ b)}
+            → (f : Members xs → B)
+            → curryMemberType {b = b} f
+curryMember {xs = []}     f = f []
+curryMember {xs = A ∷ AS} f = λ x → curryMember (f ∘ (x ∷_))
+
+indexTabulate : ∀ {a n} {A : Set a} (f : Fin n → A)
+              → (k : Fin n) → indexVec (tabulate f) k ≡ f k
+indexTabulate {n = suc n} f zero    = refl
+indexTabulate {n = suc n} f (suc k) = indexTabulate (f ∘ suc) k

@@ -14,26 +14,29 @@ import Agda.Builtin.Unit
 open Agda.Builtin.Unit
 
 
-private
-  con-type : ∀ {a} {I : Set a} (A : I → Set a) → ConDesc I → Set a
-  con-type A (κ γ)   = A γ 
-  con-type A (ι γ C) = A γ → con-type A C
-  con-type A (π S C) = (s : S) → con-type A (C s)
+con-type : ∀ {a} {I : Set a} (A : I → Set a) → ConDesc I → Set a
+con-type A (κ γ)   = A γ 
+con-type A (ι γ C) = A γ → con-type A C
+con-type A (π S C) = (s : S) → con-type A (C s)
 
-  con-proof-type : ∀ {a n} {I : Set a} {A : I → Set a} {D : Desc I n} 
-             → (to : {γ : I} → A γ → μ D γ) (from : {γ : I} → μ D γ → A γ)
-             → (constr : (k : Fin n) → con-type A (indexVec D k))
-             → Fin n
-             → Set a
-  con-proof-type {a} {I = I} {A} {D} to from contr k = aux tie (contr k)
-    where
-      tie : {γ : I} → ⟦ indexVec D k ⟧ᶜ (μ D) γ → A γ → Set a
-      tie X′ X = X ≡ from ⟨ k , X′ ⟩
-  
-      aux : {C : ConDesc I} (tie : {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → A γ → Set a) → con-type A C → Set a
-      aux {κ γ}   tie c = tie refl c
-      aux {ι γ C} tie c = (x : A γ) → aux {C} (tie ∘ (to x ,_)) (c x)
-      aux {π S C} tie c = (s : S)   → aux {C s} (tie ∘ (s ,_)) (c s) 
+con-proof′ : ∀ {a n} {I : Set a} {A : I → Set a} {D : Desc I n} 
+           → (to : {γ : I} → A γ → μ D γ)
+           → {C : ConDesc I} (tie : {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → A γ → Set a)
+           → con-type A C → Set a
+con-proof′ {A = A} to {κ γ}   tie c = tie refl c
+con-proof′ {A = A} to {ι γ C} tie c = (x : A γ) → con-proof′ to {C = C} (tie ∘ (to x ,_)) (c x)
+con-proof′ {A = A} to {π S C} tie c = (s : S)   → con-proof′ to {C = C s} (tie ∘ (s ,_)) (c s) 
+
+con-proof : ∀ {a n} {I : Set a} {A : I → Set a} {D : Desc I n} 
+           → (to : {γ : I} → A γ → μ D γ) (from : {γ : I} → μ D γ → A γ)
+           → ∀ {k} (constr : con-type A (indexVec D k))
+           → Set a
+con-proof {a} {I = I} {A} {D} to from {k} constr = con-proof′ to tie constr
+  where
+    tie : {γ : I} → ⟦ indexVec D k ⟧ᶜ (μ D) γ → A γ → Set a
+    tie X′ X = X ≡ from ⟨ k , X′ ⟩
+
+
 
 record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
   field
@@ -49,8 +52,8 @@ record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
     -- | A map from a position in the datatype to the actual constructor
     constr : (k : Fin n) → con-type A (indexVec D k)
 
-    -- | A proof that contr indeed holds the constructors of A
-    constr-proof : (k : Fin n) → con-proof-type to from constr k
+    -- | A proof that constr indeed holds the constructors of A
+    constr-proof : (k : Fin n) → con-proof to from (constr k)
 
 open HasDesc ⦃ ... ⦄
 

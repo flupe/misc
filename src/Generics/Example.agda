@@ -1,5 +1,3 @@
-{-# OPTIONS --cumulativity #-}
-
 module Generics.Example where
 
 open import Generics.Prelude
@@ -46,7 +44,7 @@ module NatDesc where
   from∘to (su n) = cong su (from∘to n)
 
   instance
-    natHasDesc : HasDesc nat
+    natHasDesc : HasDesc {lzero} nat
     natHasDesc =
       record { D = natD
              ; to = to′
@@ -57,28 +55,31 @@ module NatDesc where
              ; constr-proof = λ { zero → refl ; (suc zero) → λ x → cong su (sym (from∘to x)) }
              }
 
-  instance
-    natEq : Eq (nat tt)
-    natEq = deriveEq nat
+  elim-nat : ∀ {i} (P : nat tt → Set i) → elim-type nat P
+  elim-nat P = get-elim nat P
 
-    natShow : Show (nat tt)
-    natShow = deriveShow nat
+  -- instance
+  --   natEq : Eq (nat tt)
+  --   natEq = deriveEq nat
 
-  n1 : nat tt
-  n1 = su (su ze)
+  --   natShow : Show (nat tt)
+  --   natShow = deriveShow nat
 
-  n2 : nat tt
-  n2 = su (su (su ze))
+  -- n1 : nat tt
+  -- n1 = su (su ze)
 
-  check : (n1 == n2) ≡ no _
-  check = refl
+  -- n2 : nat tt
+  -- n2 = su (su (su ze))
 
-module VecDesc {a} (A : Set a) where
+  -- check : (su n1 == n2) ≡ yes refl
+  -- check = refl
 
-  vecD : Desc {a} Nat 2
-  vecD = deriveDesc (Vec {a} A)
+module VecDesc (A : Set) where
+
+  vecD : Desc Nat 2
+  vecD = deriveDesc (Vec A)
   
-  vec : Nat → Set a
+  vec : Nat → Set
   vec = μ vecD
   
   nil′ : vec 0
@@ -105,4 +106,18 @@ module VecDesc {a} (A : Set a) where
   from∘to []       = refl
   from∘to (x ∷ xs) = cong (x ∷_) (from∘to xs)
 
-open NatDesc
+  instance
+    vecHasDesc : HasDesc {lzero} (Vec A)
+    vecHasDesc = record
+                  { D = vecD
+                  ; to = to
+                  ; from = from
+                  ; to∘from = to∘from
+                  ; from∘to = from∘to
+                  ; constr = λ { zero → []; (suc zero) → λ n x xs → x ∷ xs }
+                  ; constr-proof = λ { zero → refl; (suc zero) → λ n x xs → cong (x ∷_) (sym (from∘to xs))}
+                  }
+
+  elim-vec : ∀ {i} (P : ∀ {n} → Vec A n → Set i) → elim-type (Vec A) P
+  elim-vec P = get-elim (Vec A) P
+
