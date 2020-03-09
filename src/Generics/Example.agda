@@ -17,7 +17,7 @@ module NatDesc where
 
   natD : Desc ⊤ 2
   natD = deriveDesc nat
-  
+ 
   nat′ : Set
   nat′ = μ natD tt
   
@@ -113,6 +113,7 @@ module TreeDesc {A : Set} where
   elim-tree : ∀ {i} (P : Tree tt → Set i) → elim-type Tree P
   elim-tree P = get-elim Tree P
 
+
 module IdDesc (A : Set) where
 
   data _≅_ (x : A) : A → Set where
@@ -139,12 +140,13 @@ module IdDesc (A : Set) where
                     ; from = from x
                     ; to∘from = to∘from x 
                     ; from∘to = from∘to x
-                    ; constr = {!!}
-                    ; constr-proof = {!!}
+                    ; constr = λ { zero → refl }
+                    ; constr-proof = λ { zero → refl }
                     }
   
   elim-id : ∀ x {i} (P : ∀ {y} → x ≅ y → Set i) → elim-type (_≅_ x) P
   elim-id x P = get-elim (_≅_ x) P
+
 
 module VecDesc (A : Set) where
 

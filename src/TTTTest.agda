@@ -1,4 +1,4 @@
-{-# OPTIONS --type-in-type #-}
+{-# OPTIONS --type-in-type --warning noDeprecationWarning #-}
 
 open import Agda.Builtin.Unit
 open import Agda.Builtin.Sigma
@@ -7,6 +7,7 @@ open import Agda.Builtin.List
 
 module TTTTest where
 
+infixr 20 _×_
 _×_ : (A B : Set) → Set
 A × B = Σ A λ _ → B
 
@@ -38,9 +39,11 @@ data maybe (A : Set) : Set where
 data _≡_ {A : Set} (x : A) : {B : Set} → B → Set where
   refl : x ≡ x
 
-
 cong : ∀ {A B x y} (f : A → B) (e : x ≡ y) → f x ≡ f y
 cong f refl = refl
+
+trans : ∀ {A B C} {x : A} {y : B} {z : C} → x ≡ y → y ≡ z → x ≡ z
+trans refl refl = refl
 
 data ⊥ : Set where
 
@@ -458,7 +461,6 @@ module Indexed where
       Eqμfin : ∀ {n} → eq (`fin n)
       _≟_ {{Eqμfin}} = deq eqfinw
 
-
 module Automated where
 
   open import Agda.Builtin.Reflection hiding (nat)
@@ -470,71 +472,10 @@ module Automated where
   open Indexed using (DatDesc; ConDesc; μ; ⟨_⟩)
   open Indexed.Sample using (natD; `nat; `ze; `su)
 
-  record HasDesc (A : Set) : Set where
-    field
-      {n}  : Nat
-      {Γ} {I} : Ctx
-      desc : DatDesc Γ I n
-      {γ}    : ⟦ Γ ⟧Ctx
-      {i}    : ⟦ I ⟧Ctx
-      to   : A → μ desc γ i
-      from : μ desc γ i → A
-      
-      from∘to : (x : A) → from (to x) ≡ x
-      to∘from : (x : μ desc γ i) → to (from x) ≡ x
-  open HasDesc {{...}}
-
-  instance
-    {-# TERMINATING #-}
-    natHasDesc : HasDesc Nat
-    Γ    {{natHasDesc}} = ε
-    I    {{natHasDesc}} = ε
-    n    {{natHasDesc}} = 2
-    desc {{natHasDesc}} = natD
-    γ    {{natHasDesc}} = tt
-    i    {{natHasDesc}} = tt
-
-    to ⦃ natHasDesc ⦄ = λ where
-      0       → `ze 
-      (suc n) → `su (to n)
-
-    from ⦃ natHasDesc ⦄ = λ where
-      ⟨ ze , refl ⟩        → 0
-      ⟨ su ze , n , refl ⟩ → suc (from n)
-
-    from∘to ⦃ natHasDesc ⦄ = λ where
-      0      → refl
-      (suc n) → cong suc (from∘to n)
-
-    to∘from ⦃ natHasDesc ⦄ = λ where
-      ⟨ ze , refl ⟩        → refl
-      ⟨ su ze , n , refl ⟩ → cong (λ p → ⟨ su ze , p , refl ⟩) (to∘from n) 
-
-  instance
-    TCMonad : Monad TC
-    return ⦃ TCMonad ⦄ = returnTC
-    _>>=_ ⦃ TCMonad ⦄ = bindTC
-
-  converteq : {A : Set} {x y : A} → Agda.Builtin.Equality._≡_ x y → x ≡ y
-  converteq Agda.Builtin.Equality._≡_.refl = refl
-
-  instance
-    eqName : eq Name
-    _≟_ {{eqName}} x y with primQNameEquality x y
-    ... | true  = yes (converteq (primTrustMe {x = x} {y = y}))
-    ... | false = no λ x≡y → trustme
-        where postulate trustme : _
-    
-  {-
-  data ConDesc (Γ : Ctx) (I : Ctx) : Set where
-    ι       : (⟦ Γ ⟧Ctx → ⟦ I ⟧Ctx) → ConDesc Γ I
-    _⊗_    : (S : ⟦ Γ ⟧Ctx → Set) → (D : ConDesc (Γ ▷ S) I) → ConDesc Γ I
-    rec_⊗_ : (r : ⟦ Γ ⟧Ctx → ⟦ I ⟧Ctx) → (D : ConDesc Γ I) → ConDesc Γ I
-
-  data DatDesc (Γ : Ctx) (I : Ctx) : nat → Set where
-    ε   : DatDesc Γ I ze
-    _∣_ : ∀ {n} → (C : ConDesc Γ I) → (D : DatDesc Γ I n) → DatDesc Γ I (su n)
-    -}
+  -- Telescopic Library
+  open import Telescope
+  open import Equality renaming (cong to cong''; _≡_ to _≡ⁿ_)
+  open import Base hiding (Σ; _+_)
 
   hidrel : ArgInfo
   hidrel = arg-info hidden relevant
@@ -553,6 +494,75 @@ module Automated where
 
   uvr : Arg Term
   uvr = vr unknown
+
+  test2 : Nat
+  test2 = _+_ $ⁿ (1 , 1 , ∗)
+
+  congⁿ : ∀ {ls i} {T : Tel ls} {B : ⟦ T ⟧ → Set i} →
+         (f : xs ∈ T →ⁿ B xs) → {rs ss : ⟦ T ⟧} →
+         (es : ⟦ rs ≡ⁿ ss ⟧) → [ es ]' (f $ⁿ rs) ≡₁ (f $ⁿ ss)
+  congⁿ f es = cong' (f $ⁿ_) es
+
+{-
+
+  record HasDesc (A : Set) : Set where
+    field
+      {n}  : Nat
+      {Γ} {I} : Ctx
+      desc : DatDesc Γ I n
+      {γ}    : ⟦ Γ ⟧Ctx
+      {i}    : ⟦ I ⟧Ctx
+      to   : A → μ desc γ i
+      from : μ desc γ i → A
+      
+      -- from∘to : (x : A) → from (to x) ≡ x
+      -- to∘from : (x : μ desc γ i) → to (from x) ≡ x
+  open HasDesc {{...}}
+
+  instance
+    natHasDesc : HasDesc Nat
+    Γ    {{natHasDesc}} = ε
+    I    {{natHasDesc}} = ε
+    n    {{natHasDesc}} = 2
+    desc {{natHasDesc}} = natD
+    γ    {{natHasDesc}} = tt
+    i    {{natHasDesc}} = tt
+
+    to ⦃ natHasDesc ⦄ = λ where
+      0       → ⟨ ze , refl ⟩
+      (suc n) → ⟨ su ze , (to n) , refl ⟩
+
+    from ⦃ natHasDesc ⦄ = λ where
+      ⟨ ze , refl ⟩        → 0
+      ⟨ su ze , n , refl ⟩ → suc (from n)
+
+  -- somehow termination checker is ok when the following are not instance fields
+
+  from∘to : (x : Nat) → from (to x) ≡ x
+  from∘to = λ where
+    0       → refl
+    (suc n) → cong suc (from∘to n)
+
+  to∘from : (x : μ natD tt tt) → to (from x) ≡ x
+  to∘from = λ where
+    ⟨ ze , refl ⟩        → refl
+    ⟨ su ze , n , refl ⟩ → cong (λ p → ⟨ su ze , p , refl ⟩) (to∘from n) 
+
+  instance
+    TCMonad : Monad TC
+    return ⦃ TCMonad ⦄ = returnTC
+    _>>=_ ⦃ TCMonad ⦄ = bindTC
+
+  converteq : {A : Set} {x y : A} → Agda.Builtin.Equality._≡_ x y → x ≡ y
+  converteq Agda.Builtin.Equality._≡_.refl = refl
+
+  instance
+    eqName : eq Name
+    _≟_ {{eqName}} x y with primQNameEquality x y
+    ... | true  = yes (converteq (primTrustMe {x = x} {y = y}))
+    ... | false = no λ x≡y → trustme
+        where postulate trustme : _
+    
 
   conDesc : (dn : Name) → Term → TC Term
   conDesc dn (pi (arg _ t) (abs _ rt)) = do
@@ -604,54 +614,60 @@ module Automated where
   pair : Term → Term → Term
   pair a b = con (quote Σ._,_) ( uhr ∷ uhr ∷ uhr ∷ uhr ∷ vr a ∷ vr b ∷ [])
 
-  buildClause : (tn fn : Name) → Type → Term → TC ((List Pattern × Term) × (Pattern × List Term))
-  buildClause _ _ _ (con (quote ConDesc.ι) args) =
-    return (([] , con (quote _≡_.refl) []) , (con (quote _≡_.refl) [] , []))
+  buildClause : (tn fn ftn : Name) → Type → Term → TC ((List Pattern × Term) × (Pattern × List Term) × (List Pattern × Term))
+  buildClause _ _ _ _ (con (quote ConDesc.ι) args) =
+    let r = con (quote _≡_.refl) [] in return (([] , r) , (con (quote _≡_.refl) [] , []) , ([] , r))
 
-  buildClause tn fn (pi _ (abs vn ct)) (con (quote ConDesc._⊗_) (_ ∷ arg _ D ∷ [])) = do
-    (tpat , ttm) , (fpat , ftm) ← buildClause tn fn ct D
-    return ( (var vn ∷ tpat , pair (var (length tpat) []) ttm)
-           , (patpair (var vn) fpat , var (length ftm) [] ∷ ftm))
+  buildClause tn fn ftn (pi _ (abs vn ct)) (con C (_ ∷ arg _ D ∷ [])) = do
+    (tpat , ttm) , (fpat , ftm) , (ftpat , fttm) ← buildClause tn fn ftn ct D
+    case C of λ where 
+      (quote ConDesc._⊗_) → return
+        ( (var vn ∷ tpat , pair (var (length tpat) []) ttm)
+        , (patpair (var vn) fpat , var (length ftm) [] ∷ ftm)
+        , var vn ∷ tpat , {!!})
+      (quote ConDesc.rec_⊗_) → return
+        ( (var vn ∷ tpat , pair (def tn (vr (var (length tpat) []) ∷ [])) ttm)
+        , (patpair (var vn) fpat , def fn (vr (var (length ftm) []) ∷ []) ∷ ftm)
+        , {!!})
+      _ → typeError (strErr "Ill-formed description for constructor" ∷ [])
 
-  buildClause tn fn (pi _ (abs vn ct)) (con (quote ConDesc.rec_⊗_) (_ ∷ arg _ D ∷ [])) = do
-    (tpat , ttm) , (fpat , ftm) ← buildClause tn fn ct D
-    return ( (var vn ∷ tpat , pair (def tn (vr (var (length tpat) []) ∷ [])) ttm)
-           , (patpair (var vn) fpat , def fn (vr (var (length ftm) []) ∷ []) ∷ ftm))
-
-  buildClause _ _ _ _    = typeError (strErr "Ill-formed description for constructor" ∷ [])
+  buildClause _ _ _ _ _ = typeError (strErr "Ill-formed description for constructor" ∷ [])
 
   fin-to-pat : ∀ {n} → fin n → Pattern
   fin-to-pat ze = con (quote fin.ze) []
   fin-to-pat (su n) = con (quote fin.su) (vr (fin-to-pat n) ∷ [])
 
-  makeClause : ∀ {n} → (tn fn : Name) → fin n → Name → Term → TC (Clause × Clause)
-  makeClause tn fn n cn cd = do
+  makeClause : ∀ {n} → (tn fn ftn : Name) → fin n → Name → Term → TC (Clause × Clause × Clause)
+  makeClause tn fn ftn k cn cd = do
     ct ← getType cn
-    n′ ← quoteTC n
+    k′ ← quoteTC k
 
-    (tpat , ttm) , (fpat , ftm) ← buildClause tn fn ct cd
+    (tpat , ttm) , (fpat , ftm) , (ftpat , fttm) ← buildClause tn fn ftn ct cd
 
     let tcl = clause (vr (con cn (map vr tpat)) ∷ [])
-                     (con (quote μ.⟨_⟩) (vr (pair n′ ttm) ∷ []))
+                     (con (quote μ.⟨_⟩) (vr (pair k′ ttm) ∷ []))
 
-    let fcl = clause (vr (con (quote μ.⟨_⟩)
-                              (vr (patpair (fin-to-pat n) fpat) ∷ []))
-                     ∷ [])
+    let fcl = clause (vr (con (quote μ.⟨_⟩) (vr (patpair (fin-to-pat k) fpat) ∷ [])) ∷ [])
                      (con cn (map vr ftm))
 
-    return (tcl , fcl)
+    let ftcl = clause (vr (con (quote μ.⟨_⟩) (vr (patpair (fin-to-pat k) ftpat) ∷ [])) ∷ [])
+                      (con (quote cong) (vr {!!} ∷ vr {!!} ∷ []))
 
-  makeClauses : ∀ {n} → (toName fromName : Name) → List (fin n) → List Name → Term → TC (List Clause × List Clause)
-  makeClauses tn fn (n ∷ ns) (x ∷ xs) (con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
-    tcl , fcl  ← makeClause tn fn n x dx
-    tcls , fcls ← makeClauses tn fn ns xs dxs
-    return (tcl ∷ tcls , fcl ∷ fcls)
+    return (tcl , fcl , ftcl)
 
-  makeClauses _ _ _ [] (con (quote DatDesc.ε) _) = return ([] , [])
-  makeClauses _ _ _ _  _ = typeError (strErr "Ill-formed description for datatype." ∷ [])
+  makeClauses : ∀ {n} (tn fn ftn : Name)
+              → List (fin n) → List Name → Term
+              → TC (List Clause × List Clause × List Clause)
+  makeClauses tn fn ftn (k ∷ ks) (x ∷ xs) (con (quote DatDesc._∣_) (_ ∷ arg _ dx ∷ arg _ dxs ∷ [])) = do
+    tcl , fcl , ftcl    ← makeClause tn fn ftn k x dx
+    tcls , fcls , ftcls ← makeClauses tn fn ftn ks xs dxs
+    return (tcl ∷ tcls , fcl ∷ fcls , ftcl ∷ ftcls)
 
-  derive-fromto : Name → Name → Name → TC ⊤
-  derive-fromto fromName toName dat = do
+  makeClauses _ _ _ _ [] (con (quote DatDesc.ε) _) = return ([] , [] , [])
+  makeClauses _ _ _ _ _ _ = typeError (strErr "Ill-formed description for datatype." ∷ [])
+
+  derive-fromto : (fn tn ftn dat : Name) → TC ⊤
+  derive-fromto fn tn ftn dat = do
     xdat ← getDefinition dat
     case xdat of λ where
       (data-type n cs) → do
@@ -664,30 +680,40 @@ module Automated where
                          ∷ vr (con (quote ⊤.tt) [])
                          ∷ [])
 
-        declareDef (vr toName) (pi (vr (def dat [])) (abs "x" μtype))
-        declareDef (vr fromName) (pi (vr μtype) (abs "x" (def dat [])))
+        declareDef (vr tn) (pi (vr (def dat [])) (abs "x" μtype))
+        declareDef (vr fn) (pi (vr μtype) (abs "x" (def dat [])))
 
-        tcls , fcls ← makeClauses toName fromName (finlist (length cs)) cs xdesc
+        declareDef (vr ftn) (pi (hr (def dat []))
+                                (abs "x" (def (quote _≡_)
+                                              ( uhr
+                                              ∷ vr (def tn (vr (def fn (vr (var 0 []) ∷ [])) ∷ []))
+                                              ∷ vr (var 0 [])
+                                              ∷ []))))
 
-        defineFun toName tcls
-        defineFun fromName fcls
+
+        tcls , fcls , ftcls ← makeClauses tn fn ftn (finlist (length cs)) cs xdesc
+
+        defineFun tn  tcls
+        defineFun fn  fcls
+        defineFun ftn ftcls
 
       _ → typeError (strErr "Argument is not a datatype." ∷ [])
 
 
-  unquoteDecl descToNat natToDesc  = derive-fromto descToNat natToDesc (quote Nat)
+  -- unquoteDecl descToNat natToDesc fromto = derive-fromto descToNat natToDesc fromto (quote Nat)
 
-  check₁ : natToDesc 1 ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
-  check₁ = refl
+  -- check₁ : natToDesc 1 ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
+  -- check₁ = refl
 
-  check₂ : descToNat (natToDesc 4) ≡ 4
-  check₂ = refl
+  -- check₂ : descToNat (natToDesc 4) ≡ 4
+  -- check₂ = refl
 
-  check₃ : natToDesc (descToNat ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩) ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
-  check₃ = refl
-
+  -- check₃ : natToDesc (descToNat ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩) ≡ ⟨ su ze , ⟨ ze , refl ⟩ , refl ⟩
+  -- check₃ = refl
 
 open import Agda.Builtin.Reflection public hiding (nat)
 open import Agda.Builtin.Bool public
 open Monad public
 open Automated public
+
+-}

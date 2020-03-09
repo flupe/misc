@@ -9,6 +9,7 @@ open import Data.Fin using (Fin; zero; suc)
 open import Data.String.Base
 open import Data.Product
 open import Data.Unit.Base
+open import Agda.Builtin.Nat
 
 infixr 10 _$_
 
@@ -79,6 +80,7 @@ module Inductive where
   unit : ∀ {ℓ} → Lift ℓ ⊤
   unit = lift tt
 
+{-
   Nat : Set
   Nat = μ NatD
 
@@ -127,3 +129,34 @@ module Inductive where
       → P x
 
   ind D P m ⟨ d ⟩ = m d (all D (μ D) P (ind D P m) d)
+
+-}
+
+module Families where
+
+  record _►_ {a b} (A : Set a) (B : A → Set b) : Set (a ⊔ b) where
+    constructor _,_
+    field
+      top : A
+      pop : B top
+
+  mutual
+
+    infixl 1 _▷_ _▷′_
+
+    data Ctx {ℓ} : Set (lsuc ℓ) where
+      _▷_ : (Γ : Ctx {ℓ}) (S : ⟦ Γ ⟧ → Set ℓ) → Ctx
+      ε   : Ctx
+
+    ⟦_⟧ : ∀ {ℓ} → Ctx {ℓ} → Set ℓ
+    ⟦ Γ ▷ S ⟧ = ⟦ Γ ⟧ ► S
+    ⟦ ε ⟧     = Lift _ ⊤
+
+    _▷′_ : ∀ {ℓ} → Ctx {ℓ} → Set ℓ → Ctx {ℓ}
+    Γ ▷′ S = Γ ▷ λ _ → S
+
+    t = ε ▷′ Set
+
+    aa = ⟦ t ⟧
+
+open Families public

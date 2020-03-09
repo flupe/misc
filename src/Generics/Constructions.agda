@@ -37,41 +37,6 @@ module Induction {i n} {I : Set i} (D : Desc {i} I n) {j} (P : {γ : I} → μ D
     ind f x = f x (all f x)
 
 
-module Recursion {i n} {I : Set i} (D : Desc {i} I n)
-                 {j} (P : ∀ {γ} → μ D γ → Set j) where
-
-  mutual
-    -- | Predicate stating that P holds for every recursive subobject
-    -- | *guarded by constructors* in x
-    BelowCon : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → Set j
-    BelowCon {κ _  } _       = ⋆
-    BelowCon {ι _ _} (x , d) = (P x × BelowDesc x) × BelowCon d
-    BelowCon {π _ _} (_ , d) = BelowCon d
-
-    -- | Predicate stating that P holds for every recursive subobject
-    -- | *guarded by constructors* in x
-    BelowDesc : ∀ {γ} (x : μ D γ) → Set j
-    BelowDesc ⟨ _ , x ⟩ = BelowCon x
-
-  module _ (p : ∀ {γ} (x : μ D γ) → BelowDesc x → P x) where
-
-    step : ∀ {γ} (x : μ D γ) → BelowDesc x → P x × BelowDesc x
-    step x m = p x m , m
-
-    mutual
-      below-con : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → BelowCon x
-      below-con {κ _  } _       = ∗
-      below-con {ι _ _} (x , d) = step x (below x) , below-con d
-      below-con {π _ _} (_ , d) = below-con d
-
-      below : ∀ {γ} (x : μ D γ) → BelowDesc x
-      below ⟨ _ , x ⟩ = below-con x
-  
-    -- | The generalized structural recursion principle
-    rec : ∀ {γ} (x : μ D γ) → P x
-    rec x = p x (below x)
-
-
 -- module NoConfusion {i n} {I : Set i} (D : Desc {i} I n) where
 -- 
 --   NoConfusionCon : ∀ {C γ} (x y : ⟦ C ⟧ᶜ (μ D) γ) → Set i → Set i
@@ -108,7 +73,7 @@ module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
 
   module Ind = Induction (D H) P′
 
-  module _ (methods : Members (elim-methods)) where
+  module _ (methods : Members elim-methods) where
 
     -- we derive the induction hypothesis on μ D from the methods
     to-hypothesis : {γ : I} → (x : μ (D H) γ) → Ind.All x → P′ x
@@ -116,7 +81,7 @@ module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
       walk (constr-proof H k) method id pack x IH refl
       where
         -- we retrieve the correct induction method from our little bag
-        method = transport id (indexTabulate (con-method) k) (lookupMember methods k)
+        method = transport id (indexTabulate con-method k) (lookupMember methods k)
         C      = indexVec (D H) k
 
         -- this function gets called at the end and finishes the proof
@@ -145,7 +110,7 @@ module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
 
     -- then, it's only a matter of applying the generalized induction principle
     elim : {γ : I} → (x : A γ) → P x
-    elim {γ} x = transport P (from∘to H x) (Ind.ind to-hypothesis (to H x))
+    elim x = transport P (from∘to H x) (Ind.ind to-hypothesis (to H x))
 
 
 -- | Returns the type of the eliminator for the given datatype
@@ -159,3 +124,81 @@ get-elim : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
              {b} (P : {γ : I} → A γ → Set b)
          → elim-type A P
 get-elim A ⦃ H ⦄ P = curryMembers (Eliminator.elim A H P)
+
+
+module Recursion {i n} {I : Set i} (D : Desc {i} I n)
+                 {j} (P : ∀ {γ} → μ D γ → Set j) where
+
+  mutual
+    -- | Predicate stating that P holds for every recursive subobject
+    -- | *guarded by constructors* in x
+    BelowCon : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → Set j
+    BelowCon {κ _  } _       = ⋆
+    BelowCon {ι _ _} (x , d) = (P x × Below x) × BelowCon d
+    BelowCon {π _ _} (_ , d) = BelowCon d
+
+    -- | Predicate stating that P holds for every recursive subobject
+    -- | *guarded by constructors* in x
+    Below : ∀ {γ} (x : μ D γ) → Set j
+    Below ⟨ _ , x ⟩ = BelowCon x
+
+  module _ (p : ∀ {γ} (x : μ D γ) → Below x → P x) where
+
+    step : ∀ {γ} (x : μ D γ) → Below x → P x × Below x
+    step x m = p x m , m
+
+    mutual
+      below-con : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → BelowCon x
+      below-con {κ _  } _       = ∗
+      below-con {ι _ _} (x , d) = step x (below x) , below-con d
+      below-con {π _ _} (_ , d) = below-con d
+
+      below : ∀ {γ} (x : μ D γ) → Below x
+      below ⟨ _ , x ⟩ = below-con x
+  
+    -- | The generalized structural recursion principle
+    rec : ∀ {γ} (x : μ D γ) → P x
+    rec x = p x (below x)
+
+
+module Recursor {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
+                {j} (P : {γ : I} → A γ → Set j) where
+
+  open HasDesc
+
+  mutual
+    {-# TERMINATING #-}
+    BelowCon : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ (D H)) γ) → Set j
+    BelowCon {κ _  } _       = ⋆
+    BelowCon {ι _ _} (x , d) = (P (from H x) × Below (from H x)) × BelowCon d
+    BelowCon {π _ _} (_ , d) = BelowCon d
+
+    {-# TERMINATING #-}
+    Below : ∀ {γ} (x : A γ) → Set j
+    Below {γ} x with to H x
+    ... | ⟨ _ , x′ ⟩ = BelowCon x′
+
+  P′ : {γ : I} → μ (D H) γ → Set j
+  P′ x′ = P (from H x′)
+
+  module Rec = Recursion (D H) P′
+
+  module _ (p : ∀ {γ} (x : A γ) → Below x → P x) where
+
+    mutual
+      below-con : ∀ {C γ}
+                → {x : ⟦ C ⟧ᶜ (μ (D H)) γ}
+                → Rec.BelowCon x
+                → BelowCon x
+      below-con {κ _  } ∗ = ∗
+      below-con {ι _ C} ((Px , bx) , bd) = (Px , below bx) , below-con {C} bd
+      below-con {π S C} {x = s , _} b = below-con {C s} b
+
+      below : ∀ {γ} {x : μ (D H) γ} → Rec.Below x → Below (from H x)
+      below {x = x@(⟨ k , x′ ⟩)} b rewrite (to∘from H x) = below-con {indexVec (D H) k} b
+
+    to-hypothesis : ∀ {γ} (x′ : μ (D H) γ) → Rec.Below x′ → P′ x′
+    to-hypothesis {γ} X′@(⟨ k , x ⟩) B = p (from H X′) (below B)
+
+    rec : ∀ {γ} (x : A γ) → P x
+    rec x = transport P (from∘to H x) (Rec.rec to-hypothesis (to H x))
