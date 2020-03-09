@@ -74,6 +74,78 @@ module NatDesc where
   -- check : (su n1 == n2) ≡ yes refl
   -- check = refl
 
+module TreeDesc {A : Set} where
+
+  data Tree : ⊤ → Set where
+    leaf : Tree tt
+    node : Tree tt → Tree tt → Tree tt
+
+  treeD : Desc ⊤ 2
+  treeD = κ tt ∷ ι tt (ι tt (κ tt)) ∷ []
+
+  tree : Set
+  tree = μ treeD tt
+
+  to : Tree tt → tree
+  to leaf       = ⟨ zero , refl ⟩
+  to (node l r) = ⟨ suc zero , to l , to r , refl ⟩
+
+  from : tree → Tree tt
+  from ⟨ zero , refl ⟩ = leaf
+  from ⟨ suc zero , l , r , refl ⟩ = node (from l) (from r)
+
+  postulate
+    to∘from : ∀ x → to (from x) ≡ x
+    from∘to : ∀ x → from (to x) ≡ x
+
+  instance
+    treeHasDesc : HasDesc Tree
+    treeHasDesc = record
+                    { D = treeD
+                    ; to = to
+                    ; from = from
+                    ; to∘from = to∘from
+                    ; from∘to = from∘to
+                    ; constr = λ { zero → leaf ; (suc zero) → node }
+                    ; constr-proof = λ { zero → refl ; (suc zero) → {!!} }
+                    }
+
+  elim-tree : ∀ {i} (P : Tree tt → Set i) → elim-type Tree P
+  elim-tree P = get-elim Tree P
+
+module IdDesc (A : Set) where
+
+  data _≅_ (x : A) : A → Set where
+    refl : x ≅ x
+
+  idD : (x : A) → Desc A 1
+  idD x = κ x ∷ []
+
+  to : ∀ x {y} → x ≅ y → μ (idD x) y
+  to x refl = ⟨ zero , refl ⟩
+
+  from : ∀ x {y} → μ (idD x) y → x ≅ y
+  from x ⟨ zero , refl ⟩ = refl
+
+  postulate
+    to∘from : ∀ x {y} (p : μ (idD x) y) → to x (from x p) ≡ p
+    from∘to : ∀ x {y} (p : x ≅ y) → from x (to x p) ≡ p
+
+  instance
+    idHasDesc : ∀ {x} → HasDesc (_≅_ x)
+    idHasDesc {x} = record
+                    { D = idD x
+                    ; to = to x
+                    ; from = from x
+                    ; to∘from = to∘from x 
+                    ; from∘to = from∘to x
+                    ; constr = {!!}
+                    ; constr-proof = {!!}
+                    }
+  
+  elim-id : ∀ x {i} (P : ∀ {y} → x ≅ y → Set i) → elim-type (_≅_ x) P
+  elim-id x P = get-elim (_≅_ x) P
+
 module VecDesc (A : Set) where
 
   vecD : Desc Nat 2

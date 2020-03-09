@@ -43,20 +43,20 @@ lookupMember : ∀ {a n} {xs : Vec (Set a) n} → Members xs → (k : Fin n) →
 lookupMember (x ∷ xs) zero    = x
 lookupMember (x ∷ xs) (suc k) = lookupMember xs k
 
-curryMemberType : ∀ {a b n} {xs : Vec (Set a) n} {B : Set (a ⊔ b)}
+curryMembersType : ∀ {a b n} {xs : Vec (Set a) n} {B : Set (a ⊔ b)}
                 → (f : Members xs → B) → Set (a ⊔ b)
-curryMemberType {a} {b} {xs = xs} {B} f = aux xs
+curryMembersType {a} {b} {xs = xs} {B} f = aux xs
   where
     aux : ∀ {n} → Vec (Set a) n → Set (a ⊔ b)
     aux []       = B
     aux (A ∷ AS) = A → aux AS
 
 
-curryMember : ∀ {a b n} {xs : Vec (Set a) n} {B : Set (a ⊔ b)}
+curryMembers : ∀ {a b n} {xs : Vec (Set a) n} {B : Set (a ⊔ b)}
             → (f : Members xs → B)
-            → curryMemberType {b = b} f
-curryMember {xs = []}     f = f []
-curryMember {xs = A ∷ AS} f = λ x → curryMember (f ∘ (x ∷_))
+            → curryMembersType {b = b} f
+curryMembers {xs = []}     f = f []
+curryMembers {xs = A ∷ AS} f = λ x → curryMembers (f ∘ (x ∷_))
 
 indexTabulate : ∀ {a n} {A : Set a} (f : Fin n → A)
               → (k : Fin n) → indexVec (tabulate f) k ≡ f k

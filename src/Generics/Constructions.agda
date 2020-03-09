@@ -7,35 +7,82 @@ open import Generics.Reflection
 
 module Induction {i n} {I : Set i} (D : Desc {i} I n) {j} (P : {γ : I} → μ D γ → Set j) where
 
-  -- | Predicate stating that P holds for every recursive argument inside x
-  ConAll : ∀ {γ} {C : ConDesc I} (x : ⟦ C ⟧ᶜ (μ D) γ) → Set j
-  ConAll {C = κ _}   (refl ) = ⋆
-  ConAll {C = ι _ _} (x , d) = P x × ConAll d
-  ConAll {C = π _ _} (_ , d) = ConAll d
+  -- | Predicate stating that P holds for every recursive subobject in x
+  AllCon : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → Set j
+  AllCon {κ _}   _       = ⋆
+  AllCon {ι _ _} (x , d) = P x × AllCon d
+  AllCon {π _ _} (_ , d) = AllCon d
 
-  -- | Predicate stating that P holds for every recursive argument inside x
-  DescAll : ∀ {γ} (x : μ D γ) → Set j
-  DescAll ⟨ k , x ⟩ = ConAll x
+  -- | Predicate stating that P holds for every recursive subobject in x
+  All : ∀ {γ} (x : μ D γ) → Set j
+  All ⟨ k , x ⟩ = AllCon x
 
   mutual
-    all-con : (f : ∀ {γ} (x : μ D γ) → DescAll x → P x)
-            → {C : ConDesc I}
-            → {γ : I} (x : ⟦ C ⟧ᶜ (μ D) γ)
-            → ConAll x
+    all-con : (f : ∀ {γ} (x : μ D γ) → All x → P x)
+            → ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ)
+            → AllCon x
     all-con f {κ _}   (refl ) = ∗
     all-con f {ι _ _} (x , d) = ind f x , all-con f d
-    all-con f {π S D} (_ , d) = all-con f d
+    all-con f {π _ _} (_ , d) = all-con f d
 
-    all : (f : ∀ {γ} (x : μ D γ) → DescAll x → P x)
-        → {γ : I} (x : μ D γ)
-        → DescAll x
+    all : (f : ∀ {γ} (x : μ D γ) → All x → P x)
+        → ∀ {γ} (x : μ D γ)
+        → All x
     all f ⟨ k , x ⟩ = all-con f x
   
     -- | The generalized induction principle
-    ind : (f : ∀ {γ} (x : μ D γ) → DescAll x → P x) -- ^ The induction hypothesis
-        → {γ : I} (x : μ D γ)
+    ind : (f : ∀ {γ} (x : μ D γ) → All x → P x) -- ^ The induction hypothesis
+        → ∀ {γ} (x : μ D γ)
         → P x
     ind f x = f x (all f x)
+
+
+module Recursion {i n} {I : Set i} (D : Desc {i} I n)
+                 {j} (P : ∀ {γ} → μ D γ → Set j) where
+
+  mutual
+    -- | Predicate stating that P holds for every recursive subobject
+    -- | *guarded by constructors* in x
+    BelowCon : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → Set j
+    BelowCon {κ _  } _       = ⋆
+    BelowCon {ι _ _} (x , d) = (P x × BelowDesc x) × BelowCon d
+    BelowCon {π _ _} (_ , d) = BelowCon d
+
+    -- | Predicate stating that P holds for every recursive subobject
+    -- | *guarded by constructors* in x
+    BelowDesc : ∀ {γ} (x : μ D γ) → Set j
+    BelowDesc ⟨ _ , x ⟩ = BelowCon x
+
+  module _ (p : ∀ {γ} (x : μ D γ) → BelowDesc x → P x) where
+
+    step : ∀ {γ} (x : μ D γ) → BelowDesc x → P x × BelowDesc x
+    step x m = p x m , m
+
+    mutual
+      below-con : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → BelowCon x
+      below-con {κ _  } _       = ∗
+      below-con {ι _ _} (x , d) = step x (below x) , below-con d
+      below-con {π _ _} (_ , d) = below-con d
+
+      below : ∀ {γ} (x : μ D γ) → BelowDesc x
+      below ⟨ _ , x ⟩ = below-con x
+  
+    -- | The generalized structural recursion principle
+    rec : ∀ {γ} (x : μ D γ) → P x
+    rec x = p x (below x)
+
+
+-- module NoConfusion {i n} {I : Set i} (D : Desc {i} I n) where
+-- 
+--   NoConfusionCon : ∀ {C γ} (x y : ⟦ C ⟧ᶜ (μ D) γ) → Set i → Set i
+--   NoConfusionCon {κ _} _ _   P = P → P
+--   NoConfusionCon {ι γ C} x y P = {!!}
+--   NoConfusionCon {π S C} (s₁ , x) (s₂ , y) P = {!!}
+-- 
+--   NoConfusion : ∀ {γ} (x y : μ D γ) → Set (lsuc i)
+--   NoConfusion ⟨ k , x ⟩ ⟨ m , y ⟩ with k == m
+--   ... | yes refl = (P : Set i) → NoConfusionCon x y P
+--   ... | no  _    = (P : Set i) → P
 
 
 module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
@@ -43,11 +90,10 @@ module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
 
   open HasDesc
 
-  unfold : (C : ConDesc I) (bow : con-type A C)
-         → (tie : {γ : I} → A γ → Set (i ⊔ j)) → Set (i ⊔ j)
-  unfold (κ k)   bow tie = tie bow
-  unfold (ι γ C) bow tie = (x : A γ) → P x → unfold (C  ) (bow x) tie
-  unfold (π S C) bow tie = (x : S)         → unfold (C x) (bow x) tie 
+  unfold : ∀ C → con-type A C → (∀ {γ} → A γ → Set (i ⊔ j)) → Set (i ⊔ j)
+  unfold (κ _)   con tie = tie con
+  unfold (ι γ C) con tie = (x : A γ) → P x → unfold (C  ) (con x) tie
+  unfold (π S C) con tie = (x : S)         → unfold (C x) (con x) tie 
 
   -- | Returns the type of the induction method for the kᵗʰ constructor
   con-method : Fin (n H) → Set (i ⊔ j)
@@ -64,48 +110,52 @@ module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
 
   module _ (methods : Members (elim-methods)) where
 
-    -- the goal is to derive the induction hypothesis on μ D
-    to-hypothesis : {γ : I} → (x : μ (D H) γ) → Ind.DescAll x → P′ x
-    to-hypothesis {γ} X@(⟨ k , x ⟩) = 
-      walk (constr H k) (constr-proof H k) method  id pack x refl
+    -- we derive the induction hypothesis on μ D from the methods
+    to-hypothesis : {γ : I} → (x : μ (D H) γ) → Ind.All x → P′ x
+    to-hypothesis {γ} X@(⟨ k , x ⟩) IH = 
+      walk (constr-proof H k) method id pack x IH refl
       where
-        -- we simply pick the right induction method out of our little bag,
-        method  = transport id (indexTabulate (con-method) k) (lookupMember methods k)
+        -- we retrieve the correct induction method from our little bag
+        method = transport id (indexTabulate (con-method) k) (lookupMember methods k)
+        C      = indexVec (D H) k
 
-        -- the kᵗʰ constructor
-        con″    = indexVec (D H) k
+        -- this function gets called at the end and finishes the proof
+        pack : ∀ {x₁ x₂} → x₂ ≡ from H ⟨ k , x₁ ⟩ → x ≡ x₁ → (⋆ → P x₂) → P′ X
+        pack p refl Px₂ = transport P p (Px₂ ∗)
 
-        pack : {x₁ : ⟦ con″ ⟧ᶜ (μ (D H)) γ} → x ≡ x₁ → {x₂ : A γ} → x₂ ≡ from H ⟨ k , x₁ ⟩ → (⋆ → P x₂) → P′ X
-        pack refl p Hx₂ = transport P p (Hx₂ ∗)
-
-        walk : {C : ConDesc I} {f : ∀ {γ} → ⟦ C ⟧ᶜ (μ (D H)) γ → A γ → Set i} {g : ∀ {γ} →  A γ → Set (i ⊔ j)}
-             → (cons : con-type A C)
-             → con-proof′ (to H) f cons
-             → unfold C cons g
-             → (bow : ⟦ C ⟧ᶜ (μ (D H)) γ → ⟦ con″ ⟧ᶜ (μ (D H)) γ)
-             → (tie : {x₁ : ⟦ C ⟧ᶜ (μ (D H)) γ} → x ≡ bow x₁ → {x₂ : A γ} → f x₁ x₂ → g x₂ → P′ X)
-             → (x′ : ⟦ C ⟧ᶜ (μ (D H)) γ)
-             → x ≡ bow x′
-             → Ind.ConAll x′
+        -- the entire point of this little walk is to construct x₁ and x₂
+        walk : ∀ {C′} {f : ∀ {γ} → ⟦ C′ ⟧ᶜ (μ (D H)) γ → A γ → Set i} {g : ∀ {γ} → A γ → Set (i ⊔ j)}
+             → {cons : con-type A C′}     -- ^ partial constructor in A γ
+             → con-proof′ (to H) f cons   -- ^ partial proof that cons is related to C
+             → unfold C′ cons g           -- ^ partial induction method for C
+             → (mk : ⟦ C′ ⟧ᶜ (μ (D H)) γ → ⟦ C ⟧ᶜ (μ (D H)) γ)
+             → (∀ {x₁ x₂} → f x₁ x₂ → x ≡ mk x₁ → g x₂ → P′ X)
+             → ∀ x′ → Ind.AllCon x′ → x ≡ mk x′
              → P′ X
-        walk {κ _  } cons cons′ meth bow tie refl    w p         = tie w cons′ meth
-        walk {ι γ C} {f} cons cons′ meth bow tie (x , d) w (px , pd) =
-          walk (cons (from H x)) (cons′ (from H x)) (meth (from H x) px) (bow ∘ (x ,_))
-               -- ok maybe it would be best to simplify this
-               (λ {x₂} x₁ {x₅} x₃ x₄ → tie x₁ (transport (λ x₇ → f (x₇ , x₂) x₅) (to∘from H x) x₃) x₄) d w pd
-        walk {π S C} cons cons′ meth bow tie (s , d) w p =
-          walk (cons s) (cons′ s) (meth s) (bow ∘ (s ,_)) tie d w p
+
+        walk {κ _  } p Px _ tie refl _ w = tie p w Px
+
+        walk {ι _ _} {f} mkp mkP mk tie (x , d) (Px , Pd) =
+          walk (mkp (from H x)) (mkP (from H x) Px) (mk ∘ (x ,_))
+               (tie ∘ (transport (λ x → f (x , _) _) (to∘from H x)))
+               d Pd
+
+        walk {π _ _} mkp mkP mk tie (s , d) =
+          walk (mkp s) (mkP s) (mk ∘ (s ,_)) tie d
 
     -- then, it's only a matter of applying the generalized induction principle
     elim : {γ : I} → (x : A γ) → P x
     elim {γ} x = transport P (from∘to H x) (Ind.ind to-hypothesis (to H x))
 
 
+-- | Returns the type of the eliminator for the given datatype
 elim-type : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
-          → ∀ {b} (P : {γ : I} → A γ → Set b) → Set (a ⊔ b)
-elim-type A ⦃ H ⦄ {b} P = curryMemberType {b = b} (Eliminator.elim A H P)
+              {b} (P : {γ : I} → A γ → Set b)
+          → Set (a ⊔ b)
+elim-type A ⦃ H ⦄ {b} P = curryMembersType {b = b} (Eliminator.elim A H P)
 
+-- | Returns the eliminator for the given datatype
 get-elim : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
-         → ∀ {b} (P : {γ : I} → A γ → Set b)
+             {b} (P : {γ : I} → A γ → Set b)
          → elim-type A P
-get-elim A ⦃ H ⦄ P = curryMember (Eliminator.elim A H P)
+get-elim A ⦃ H ⦄ P = curryMembers (Eliminator.elim A H P)
