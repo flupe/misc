@@ -58,6 +58,10 @@ module NatDesc where
   elim-nat : ∀ {i} (P : nat tt → Set i) → elim-type nat P
   elim-nat P = get-elim nat P
 
+  case-nat : ∀ {i} (P : nat tt → Set i) → case-type nat P
+  case-nat P = get-case nat P
+
+
   -- instance
   --   natEq : Eq (nat tt)
   --   natEq = deriveEq nat
@@ -94,9 +98,17 @@ module TreeDesc {A : Set} where
   from ⟨ zero , refl ⟩ = leaf
   from ⟨ suc zero , l , r , refl ⟩ = node (from l) (from r)
 
-  postulate
-    to∘from : ∀ x → to (from x) ≡ x
-    from∘to : ∀ x → from (to x) ≡ x
+  from∘to : ∀ x → from (to x) ≡ x
+  from∘to leaf = refl
+  from∘to (node x₁ x₂) = cong₂ node (from∘to x₁) (from∘to x₂)
+
+  to∘from : ∀ x → to (from x) ≡ x
+  to∘from ⟨ zero , refl ⟩ = refl
+  to∘from ⟨ suc zero , x₁ , x₂ , refl ⟩ =
+    cong₂ (λ x₁ x₂ → ⟨ suc zero , x₁ , x₂ , refl ⟩) (to∘from x₁) (to∘from x₂)
+
+  more : ∀ x₁ x₂ → node x₁ x₂ ≡ node (from (to x₁)) (from (to x₂))
+  more x y = sym (from∘to (node x y))
 
   instance
     treeHasDesc : HasDesc Tree
@@ -107,12 +119,15 @@ module TreeDesc {A : Set} where
                     ; to∘from = to∘from
                     ; from∘to = from∘to
                     ; constr = λ { zero → leaf ; (suc zero) → node }
-                    ; constr-proof = λ { zero → refl ; (suc zero) → {!!} }
+                    ; constr-proof = λ { zero → refl ; (suc zero) → more }
                     }
 
   elim-tree : ∀ {i} (P : Tree tt → Set i) → elim-type Tree P
   elim-tree P = get-elim Tree P
 
+  case-tree : ∀ {i} (P : Tree tt → Set i) → case-type Tree P
+  case-tree P = get-case Tree P
+  
 
 module IdDesc (A : Set) where
 

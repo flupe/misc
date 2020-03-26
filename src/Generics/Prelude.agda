@@ -1,7 +1,10 @@
+{-# OPTIONS --rewriting #-}
+
 module Generics.Prelude where
 
 open import Agda.Primitive        public
 open import Agda.Builtin.Equality public
+open import Agda.Builtin.Equality.Rewrite
 
 open import Prelude hiding (abs)  public
 open import Prelude.Equality      public
@@ -51,6 +54,11 @@ curryMembersType {a} {b} {xs = xs} {B} f = aux xs
     aux []       = B
     aux (A ∷ AS) = A → aux AS
 
+declareMembers : ∀ {a n} {xs : Vec (Set a) n}
+               → (f : (k : Fin n) → indexVec xs k)
+               → Members xs
+declareMembers {xs = []}     f = []
+declareMembers {xs = A ∷ xs} f = f zero ∷ declareMembers (f ∘ suc)
 
 curryMembers : ∀ {a b n} {xs : Vec (Set a) n} {B : Set (a ⊔ b)}
             → (f : Members xs → B)
@@ -62,3 +70,17 @@ indexTabulate : ∀ {a n} {A : Set a} (f : Fin n → A)
               → (k : Fin n) → indexVec (tabulate f) k ≡ f k
 indexTabulate {n = suc n} f zero    = refl
 indexTabulate {n = suc n} f (suc k) = indexTabulate (f ∘ suc) k
+
+{-# REWRITE indexTabulate #-}
+
+mapMembers : ∀ {a n} {xs ys : Vec (Set a) n}
+           → (f : (k : Fin n) → indexVec xs k → indexVec ys k)
+           → Members xs
+           → Members ys
+mapMembers {ys = []}     f []       = []
+mapMembers {ys = y ∷ ys} f (z ∷ zs) = (f zero z) ∷ mapMembers (f ∘ suc) zs
+
+-- ideally we should reverse the list
+sigmatize : ∀ {a} → List (Set a) → Set a
+sigmatize []       = ⋆
+sigmatize (x ∷ xs) = x × sigmatize xs

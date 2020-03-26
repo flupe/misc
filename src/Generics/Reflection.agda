@@ -75,12 +75,12 @@ uvr = vr unknown
 last : List (Arg Term) → Arg Term
 last [] = vr (con (quote Agda.Builtin.Unit.tt) [])
 last (x ∷ []) = x
-last (x ∷ xs) = last xs
+last (_ ∷ xs) = last xs
 
 last′ : List (Arg Term) → Term
 last′ [] = con (quote Agda.Builtin.Unit.tt) []
 last′ (arg _ x ∷ []) = x
-last′ (x ∷ xs) = last′ xs
+last′ (_ ∷ xs) = last′ xs
 
 -- | Unwraps the value of a Maybe A into TC A,
 -- | fails with given error message if there is no value.

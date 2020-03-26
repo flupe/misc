@@ -1,3 +1,4 @@
+{-# OPTIONS --rewriting #-}
 module Generics.Constructions where
 
 open import Generics.Prelude
@@ -9,7 +10,7 @@ module Induction {i n} {I : Set i} (D : Desc {i} I n) {j} (P : {γ : I} → μ D
 
   -- | Predicate stating that P holds for every recursive subobject in x
   AllCon : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → Set j
-  AllCon {κ _}   _       = ⋆
+  AllCon {κ _  } (refl ) = ⋆
   AllCon {ι _ _} (x , d) = P x × AllCon d
   AllCon {π _ _} (_ , d) = AllCon d
 
@@ -21,7 +22,7 @@ module Induction {i n} {I : Set i} (D : Desc {i} I n) {j} (P : {γ : I} → μ D
     all-con : (f : ∀ {γ} (x : μ D γ) → All x → P x)
             → ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ)
             → AllCon x
-    all-con f {κ _}   (refl ) = ∗
+    all-con f {κ _  } (refl ) = ∗
     all-con f {ι _ _} (x , d) = ind f x , all-con f d
     all-con f {π _ _} (_ , d) = all-con f d
 
@@ -37,26 +38,13 @@ module Induction {i n} {I : Set i} (D : Desc {i} I n) {j} (P : {γ : I} → μ D
     ind f x = f x (all f x)
 
 
--- module NoConfusion {i n} {I : Set i} (D : Desc {i} I n) where
--- 
---   NoConfusionCon : ∀ {C γ} (x y : ⟦ C ⟧ᶜ (μ D) γ) → Set i → Set i
---   NoConfusionCon {κ _} _ _   P = P → P
---   NoConfusionCon {ι γ C} x y P = {!!}
---   NoConfusionCon {π S C} (s₁ , x) (s₂ , y) P = {!!}
--- 
---   NoConfusion : ∀ {γ} (x y : μ D γ) → Set (lsuc i)
---   NoConfusion ⟨ k , x ⟩ ⟨ m , y ⟩ with k == m
---   ... | yes refl = (P : Set i) → NoConfusionCon x y P
---   ... | no  _    = (P : Set i) → P
-
-
 module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
                   {j} (P : {γ : I} → A γ → Set j) where
 
   open HasDesc
 
   unfold : ∀ C → con-type A C → (∀ {γ} → A γ → Set (i ⊔ j)) → Set (i ⊔ j)
-  unfold (κ _)   con tie = tie con
+  unfold (κ _  ) con tie = tie con
   unfold (ι γ C) con tie = (x : A γ) → P x → unfold (C  ) (con x) tie
   unfold (π S C) con tie = (x : S)         → unfold (C x) (con x) tie 
 
@@ -71,7 +59,9 @@ module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
   P′ : {γ : I} → μ (D H) γ → Set j
   P′ x′ = P (from H x′)
 
+
   module Ind = Induction (D H) P′
+
 
   module _ (methods : Members elim-methods) where
 
@@ -81,7 +71,7 @@ module Eliminator {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
       walk (constr-proof H k) method id pack x IH refl
       where
         -- we retrieve the correct induction method from our little bag
-        method = transport id (indexTabulate con-method k) (lookupMember methods k)
+        method = lookupMember methods k
         C      = indexVec (D H) k
 
         -- this function gets called at the end and finishes the proof
@@ -126,6 +116,68 @@ get-elim : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
 get-elim A ⦃ H ⦄ P = curryMembers (Eliminator.elim A H P)
 
 
+module Case {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
+            {b} (P : {γ : I} → A γ → Set b) where
+
+  open HasDesc
+
+  unfold : ∀ C → con-type A C → (∀ {γ} → A γ → Set (a ⊔ b)) → Set (a ⊔ b)
+  unfold (κ _  ) con tie = tie con
+  unfold (ι γ C) con tie = (x : A γ) → unfold (C  ) (con x) tie
+  unfold (π S C) con tie = (x : S)   → unfold (C x) (con x) tie 
+
+  -- | Returns the type of the case method for the kᵗʰ constructor
+  con-method : Fin (n H) → Set (a ⊔ b)
+  con-method k = unfold (indexVec (D H) k) (constr H k) λ x → ⋆ {a ⊔ b} → P x
+
+  -- | A vector containing the types of every constructor's case method
+  case-methods : Vec (Set (a ⊔ b)) (n H)
+  case-methods = tabulate (con-method)
+
+  module Elim = Eliminator A H P
+
+  -- | Converts a kᵗʰ case method to a kᵗʰ elim method
+  case-to-elim : (k : Fin (n H)) → con-method k → Elim.con-method k
+  case-to-elim k method =
+    walk (indexVec (D H) k) method
+    where
+      walk : ∀ C {con} → unfold C con _ → Elim.unfold C con _
+      walk (κ γ  ) m = m
+      walk (ι γ C) m = λ (x : A γ) _ → walk C (m x)
+      walk (π S C) m = λ (s : S)     → walk (C s) (m s)
+
+  -- | The generalized case analysis principle
+  case : Members case-methods → {γ : I} (x : A γ) → P x
+  case = Elim.elim ∘ mapMembers case-to-elim 
+
+
+-- | Returns the type of the case analysis principle for the given datatype
+case-type : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
+              {b} (P : {γ : I} → A γ → Set b)
+          → Set (a ⊔ b)
+case-type A ⦃ H ⦄ {b} P = curryMembersType {b = b} (Case.case A P)
+
+-- | Returns the case analysis principle for the given datatype
+get-case : ∀ {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
+             {b} (P : {γ : I} → A γ → Set b)
+         → case-type A P
+get-case A ⦃ H ⦄ P = curryMembers (Case.case A P)
+
+
+{-
+through-elim : ∀ {a b} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
+             → (membersP : Members (Eliminator.elim-methods A H (const (Set b))))
+             -- simply put: case analysis on the constructor to build P
+             → {!!}
+             → {γ : I} (x : A γ)
+             → Eliminator.elim A H (const (Set b)) membersP x
+through-elim {a} {b} A ⦃ H ⦄ mems _ x =
+  Eliminator.elim A H (Eliminator.elim A H (const (Set b)) mems)
+    {!!}
+    x
+    -}
+
+
 module Recursion {i n} {I : Set i} (D : Desc {i} I n)
                  {j} (P : ∀ {γ} → μ D γ → Set j) where
 
@@ -161,44 +213,55 @@ module Recursion {i n} {I : Set i} (D : Desc {i} I n)
     rec x = p x (below x)
 
 
+{-
 module Recursor {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
                 {j} (P : {γ : I} → A γ → Set j) where
 
   open HasDesc
+  module Elim = Eliminator A H
 
-  mutual
-    {-# TERMINATING #-}
-    BelowCon : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ (D H)) γ) → Set j
-    BelowCon {κ _  } _       = ⋆
-    BelowCon {ι _ _} (x , d) = (P (from H x) × Below (from H x)) × BelowCon d
-    BelowCon {π _ _} (_ , d) = BelowCon d
+  Below-method : (k : Fin (n H)) → indexVec (Elim.elim-methods (const (Set j))) k
+  Below-method k =
+    let meth = walk (indexVec (D H) k) (constr H k) (λ x _ _ → x) []
+    in transport id (sym (indexTabulate (Elim.con-method (const (Set j))) k)) meth
+    where
+      walk : (C : ConDesc I)
+           → (con : con-type A C)
+           → {f : ∀ {γ} → A γ → Set (i ⊔ lsuc j)}
+           → (tie : Set j → ∀ {γ} (x : A γ) → f x)
+           → List (Set j)
+           → Elim.unfold (const (Set j)) C con f
+      walk (κ _  ) con tie acc = tie {!!} con
+      walk (ι γ C) con tie acc = λ x Px → walk C (con x) tie ((Px × P x) ∷ acc)
+      walk (π _ C) con tie acc = λ s → walk (C s) (con s) tie acc
 
-    {-# TERMINATING #-}
-    Below : ∀ {γ} (x : A γ) → Set j
-    Below {γ} x with to H x
-    ... | ⟨ _ , x′ ⟩ = BelowCon x′
+  -- | Predicate stating that P holds for every recursive subobject
+  -- | *guarded by constructors* in x
+  -- Below using the eliminator
+  Below : ∀ {γ} (x : A γ) → Set j
+  Below = Elim.elim _ (declareMembers Below-method)
 
-  P′ : {γ : I} → μ (D H) γ → Set j
-  P′ x′ = P (from H x′)
 
-  module Rec = Recursion (D H) P′
+  -- below-method : (k : Fin (n H)) → indexVec (Elim.elim-methods Below) k
+  -- below-method k =
+  --   let meth = walk (indexVec (D H) k) (constr H k) λ x → {!!}
+  --   in transport id (sym (indexTabulate (Elim.con-method Below) k)) {!!}
+  --   where
+  --     walk : (C : ConDesc I)
+  --          → (con : con-type A C)
+  --          → {f : ∀ {γ} → (x : A γ) → Set (i ⊔ j)}
+  --          → (tie : ∀ {γ} (x : A γ) → f x)
+  --          → Elim.unfold Below C con f
+  --     walk (κ _  ) con tie = {!!}
+  --     walk (ι γ C) con tie = λ x Bx → {!!}
+  --     walk (π _ C) con tie = λ s → walk (C s) (con s) {!!}
 
-  module _ (p : ∀ {γ} (x : A γ) → Below x → P x) where
 
-    mutual
-      below-con : ∀ {C γ}
-                → {x : ⟦ C ⟧ᶜ (μ (D H)) γ}
-                → Rec.BelowCon x
-                → BelowCon x
-      below-con {κ _  } ∗ = ∗
-      below-con {ι _ C} ((Px , bx) , bd) = (Px , below bx) , below-con {C} bd
-      below-con {π S C} {x = s , _} b = below-con {C s} b
+  below : (∀ {γ} (x : A γ) → Below x → P x)
+        → ∀ {γ} (x : A γ) → Below x
+  below P x = {!through-elim!} -- Elim.elim Below (declareMembers below-method)
 
-      below : ∀ {γ} {x : μ (D H) γ} → Rec.Below x → Below (from H x)
-      below {x = x@(⟨ k , x′ ⟩)} b rewrite (to∘from H x) = below-con {indexVec (D H) k} b
-
-    to-hypothesis : ∀ {γ} (x′ : μ (D H) γ) → Rec.Below x′ → P′ x′
-    to-hypothesis {γ} X′@(⟨ k , x ⟩) B = p (from H X′) (below B)
-
-    rec : ∀ {γ} (x : A γ) → P x
-    rec x = transport P (from∘to H x) (Rec.rec to-hypothesis (to H x))
+  rec : (∀ {γ} (x : A γ) → Below x → P x)
+      → ∀ {γ} (x : A γ) → P x
+  rec f x = f x (below f x)
+  -}
