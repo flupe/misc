@@ -9,6 +9,7 @@ open import Agda.Builtin.Equality.Rewrite
 open import Prelude hiding (abs)  public
 open import Prelude.Equality      public
 
+
 infix 2 Σ-syntax
 
 Σ-syntax : ∀ {a b} (A : Set a) → (A → Set b) → Set (a ⊔ b)

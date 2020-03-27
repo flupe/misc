@@ -143,8 +143,8 @@ module Case {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄
     where
       walk : ∀ C {con} → unfold C con _ → Elim.unfold C con _
       walk (κ γ  ) m = m
-      walk (ι γ C) m = λ (x : A γ) _ → walk C (m x)
-      walk (π S C) m = λ (s : S)     → walk (C s) (m s)
+      walk (ι γ C) m = λ x _ → walk C (m x)
+      walk (π S C) m = λ s   → walk (C s) (m s)
 
   -- | The generalized case analysis principle
   case : Members case-methods → {γ : I} (x : A γ) → P x
@@ -265,3 +265,60 @@ module Recursor {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
       → ∀ {γ} (x : A γ) → P x
   rec f x = f x (below f x)
   -}
+
+module Confusion {a n} {I : Set a} (D : Desc {a} I n)
+                 {b} (P : {γ : I} → μ D γ → Set b) where
+
+  -- | Relation between two interpretations of the same constructor
+  -- maybe we should use JMeq instead?
+  NoConfusionCon : ∀ {C γ} (x y : ⟦ C ⟧ᶜ (μ D) γ) → Set a
+  NoConfusionCon {κ _  } (refl  ) (refl  ) = ⊤′
+  NoConfusionCon {ι _ _} (x , dx) (y , dy) = x ≡ y × NoConfusionCon dx dy
+  NoConfusionCon {π _ _} (x , dx) (y , dy) = Σ (x ≡ y) λ { refl → NoConfusionCon dx dy }
+
+  NoConfusion : ∀ {γ} (x y : μ D γ) → Set a
+  NoConfusion ⟨ kx , x ⟩ ⟨ ky , y ⟩ with kx == ky
+  ... | yes refl = NoConfusionCon x y
+  ... | no kx≢ky = ⊥′
+
+
+  noConfRefl : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → NoConfusionCon x x
+  noConfRefl {κ γ  } refl    = unit
+  noConfRefl {ι γ C} (x , d) = refl , noConfRefl d
+  noConfRefl {π S C} (s , d) = refl , noConfRefl d
+
+  noConf : ∀ {γ} {x y : μ D γ}
+         → x ≡ y → NoConfusion x y
+  noConf {x = ⟨ kx , x ⟩} {⟨ ky , y ⟩} refl with kx == ky
+  ... | yes refl = noConfRefl x
+  ... | no kx≢ky = ⊥-elim (kx≢ky refl) 
+
+
+  noConfCon : ∀ {C γ} {x y : ⟦ C ⟧ᶜ (μ D) γ} → NoConfusionCon x y → x ≡ y
+  noConfCon {κ γ  } {x = refl} {refl} nc = refl
+  noConfCon {ι γ C} (refl , nc) = cong _ (noConfCon nc)
+  noConfCon {π S C} (refl , nc) = cong _ (noConfCon nc)
+
+  noConf₂ : ∀ {γ} {x y : μ D γ} → NoConfusion x y → x ≡ y
+  noConf₂ {x = ⟨ kx , x ⟩} {y = ⟨ ky , y ⟩} with kx == ky
+  ... | yes refl = cong (⟨_⟩ ∘ (kx ,_)) ∘ noConfCon
+  ... | no kx≢ky = λ ()
+
+{-
+module Confusion {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄ where
+
+  open HasDesc
+  open module C = Case A
+
+  NoConfusion : {γ : I} (x y : A γ) → Set a
+  NoConfusion {γ} x = case (const (A γ → Set a)) (declareMembers m) x
+    where
+      m : (k : Fin (n H)) → con-method (const (A γ → Set a)) k
+      m k = {!!}
+        where
+          walk : ∀ C {con} → unfold (const (A γ → Set a)) C con {!!}
+          walk (κ γ  )       = {!!}
+          walk (ι γ C)       = {!!}
+          walk (π S C) {con} = λ s → walk (C s) {con s}
+
+-}
