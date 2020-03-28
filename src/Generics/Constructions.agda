@@ -6,6 +6,18 @@ open import Generics.Desc
 open import Generics.Reflection
 
 
+module Utils {i} {I : Set i} (A : I → Set i) ⦃ H : HasDesc {i} A ⦄ where
+
+  open HasDesc
+
+  -- test: pushes the interpretation one step inward
+  -- maybe it's actually the only thing we need, and not the full to , from
+  -- i.e A → F(A) with F the signature functor and A the concrete datatype
+  step : ∀ {γ} → A γ → ⟦ D H ⟧ᵈ A γ
+  step x = {!!}
+       
+
+
 module Induction {i n} {I : Set i} (D : Desc {i} I n) {j} (P : {γ : I} → μ D γ → Set j) where
 
   -- | Predicate stating that P holds for every recursive subobject in x
@@ -303,22 +315,3 @@ module Confusion {a n} {I : Set a} (D : Desc {a} I n)
   noConf₂ {x = ⟨ kx , x ⟩} {y = ⟨ ky , y ⟩} with kx == ky
   ... | yes refl = cong (⟨_⟩ ∘ (kx ,_)) ∘ noConfCon
   ... | no kx≢ky = λ ()
-
-{-
-module Confusion {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄ where
-
-  open HasDesc
-  open module C = Case A
-
-  NoConfusion : {γ : I} (x y : A γ) → Set a
-  NoConfusion {γ} x = case (const (A γ → Set a)) (declareMembers m) x
-    where
-      m : (k : Fin (n H)) → con-method (const (A γ → Set a)) k
-      m k = {!!}
-        where
-          walk : ∀ C {con} → unfold (const (A γ → Set a)) C con {!!}
-          walk (κ γ  )       = {!!}
-          walk (ι γ C)       = {!!}
-          walk (π S C) {con} = λ s → walk (C s) {con s}
-
--}

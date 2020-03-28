@@ -1,6 +1,7 @@
 module Generics.Reflection where
 
 open import Agda.Builtin.Reflection
+open import Agda.Builtin.Equality.Rewrite
 open import Builtin.Reflection
 
 open import Tactic.Reflection
@@ -23,9 +24,9 @@ con-proof′ : ∀ {a n} {I : Set a} {A : I → Set a} {D : Desc I n}
            → (to : {γ : I} → A γ → μ D γ)
            → {C : ConDesc I} (tie : {γ : I} → ⟦ C ⟧ᶜ (μ D) γ → A γ → Set a)
            → con-type A C → Set a
-con-proof′ {A = A} to {κ γ}   tie c = tie refl c
-con-proof′ {A = A} to {ι γ C} tie c = (x : A γ) → con-proof′ to {C = C} (tie ∘ (to x ,_)) (c x)
-con-proof′ {A = A} to {π S C} tie c = (s : S)   → con-proof′ to {C = C s} (tie ∘ (s ,_)) (c s) 
+con-proof′ to {κ γ}   tie c = tie refl c
+con-proof′ to {ι γ C} tie c = ∀ x → con-proof′ to (tie ∘ (to x ,_)) (c x)
+con-proof′ to {π S C} tie c = ∀ s → con-proof′ to (tie ∘ (s ,_)) (c s) 
 
 con-proof : ∀ {a n} {I : Set a} {A : I → Set a} {D : Desc I n} 
            → (to : {γ : I} → A γ → μ D γ) (from : {γ : I} → μ D γ → A γ)
@@ -37,25 +38,56 @@ con-proof {a} {I = I} {A} {D} to from {k} constr = con-proof′ to tie constr
     tie X′ X = X ≡ from ⟨ k , X′ ⟩
 
 
-
 record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
   field
     {n} : Nat
     D : Desc {a} I n
 
-    to   : ∀ {i} → A i → μ {a} D i
-    from : {i : I} → μ D i → A i
+    -- experiment: pushes the interpretation one step inward
+    -- maybe it's actually the only thing we need, and not the full to , from isomorphism
+    step   : ∀ {γ} → A γ → ⟦ D ⟧ᵈ A γ
+    unstep : ∀ {γ} → ⟦ D ⟧ᵈ A γ → A γ 
 
-    to∘from : ∀ {i} (x : μ D i) → to (from x) ≡ x
-    from∘to : ∀ {i} (x : A i)   → from (to x) ≡ x
+    step∘unstep : ∀ {γ} (x : ⟦ D ⟧ᵈ A γ) → step (unstep x) ≡ x
+    unstep∘step : ∀ {γ} (x : A γ)        → unstep (step x) ≡ x
 
     -- | A map from a position in the datatype to the actual constructor
     constr : (k : Fin n) → con-type A (indexVec D k)
 
+    -- TODO: figure out if needed and what
     -- | A proof that constr indeed holds the constructors of A
-    constr-proof : (k : Fin n) → con-proof to from (constr k)
+    -- constr-proof : (k : Fin n) → con-proof to from (constr k)
 
 open HasDesc ⦃ ... ⦄
+
+
+-- is-there any hope to prove this terminating?
+{-# TERMINATING #-}
+to : ∀ {a} {I : Set a} {A : I → Set a} ⦃ H : HasDesc A ⦄
+    {γ} → A γ → μ D γ
+to {A = A} ⦃ H ⦄ {γ} x with step x
+... | (k , x′) = aux x′ (⟨_⟩ ∘ (k ,_))
+  where
+    aux : ∀ {C} → ⟦ C ⟧ᶜ A γ → (⟦ C ⟧ᶜ (μ D) γ → μ D γ) → μ D γ
+    aux {κ γ  } refl tie    = tie refl
+    aux {ι γ C} (x , d) tie = aux d (tie ∘ (_,_ ∘ to) x)
+    aux {π S C} (s , d) tie = aux d (tie ∘ (s ,_))
+
+
+from : ∀ {a} {I : Set a} {A : I → Set a} ⦃ H : HasDesc A ⦄
+    {γ} → μ D γ → A γ
+from {A = A} ⦃ H ⦄ {γ} ⟨ k , x ⟩ = unstep (k , aux x)
+  where
+    aux : ∀ {C} → ⟦ C ⟧ᶜ (μ D) γ → ⟦ C ⟧ᶜ A γ
+    aux {κ γ} refl      = refl
+    aux {ι γ C} (x , d) = from x , aux d
+    aux {π S C} (s , d) = s      , aux d
+
+
+to∘from : ∀ {a} {I : Set a} {A : I → Set a} ⦃ H : HasDesc A ⦄
+    {γ} (x : μ (D ⦃ H ⦄) γ) → to (from x) ≡ x
+to∘from ⟨ k , x ⟩ = {!!}
+
 
 hr : ∀ {a} {A : Set a} → A → Arg A
 hr t = arg (arg-info hidden relevant) t
@@ -180,6 +212,7 @@ module Deriving where
     open import Prelude.String
     open import Prelude.Equality
   
+{-
 
     module ShowMu {i n} {I : Set i} {D : Desc {i} I n} {DI : DescInstance Show D} where
       mutual
@@ -249,3 +282,5 @@ module Deriving where
     _==_ ⦃ deriveEq A ⦃ H ⦄ ⦃ E ⦄ ⦄ x y =
       decEqIso {f = to} {g = from} from∘to (_==_ ⦃ E ⦄ (to x) (to y))
 
+
+-}

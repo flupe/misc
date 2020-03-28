@@ -12,7 +12,7 @@ open import Prelude.Equality      public
 
 infix 2 Σ-syntax
 
-Σ-syntax : ∀ {a b} (A : Set a) → (A → Set b) → Set (a ⊔ b)
+
 Σ-syntax = Σ
 
 syntax Σ-syntax A (λ x → B) = Σ[ x ∈ A ] B
