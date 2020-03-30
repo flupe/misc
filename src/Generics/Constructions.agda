@@ -6,6 +6,24 @@ open import Generics.Desc
 open import Generics.Reflection
 
 
+module SingleStep {i} {I : Set i} {A : I → Set i} ⦃ H : HasDesc {i} A ⦄ where
+
+  open HasDesc ⦃ ... ⦄
+
+  step : ∀ {γ} → A γ → ⟦ D ⟧ᵈ A γ
+  step {γ} x with to x
+  ... | ⟨ k , x′ ⟩ = k , aux x′
+    where
+      aux : ∀ {C} → ⟦ C ⟧ᶜ (μ D) γ → ⟦ C ⟧ᶜ A γ
+      aux {κ γ} refl      = refl
+      aux {ι γ C} (x , d) = from x , aux d
+      aux {π S C} (s , d) = s      , aux d
+
+  postulate
+    unstep      : ∀ {γ} → ⟦ D ⟧ᵈ A γ → A γ
+    unstep∘step : ∀ {γ} (x : A γ) → unstep (step x) ≡ x
+
+
 module Induction {i n} {I : Set i} (D : Desc {i} I n) {j} (P : {γ : I} → μ D γ → Set j) where
 
   -- | Predicate stating that P holds for every recursive subobject in x
@@ -267,58 +285,56 @@ module Recursor {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
   -}
 
 module Confusion {a n} {I : Set a} (D : Desc {a} I n)
-                 {b} (P : {γ : I} → μ D γ → Set b) where
+                 (X : I → Set a) where
 
   -- | Relation between two interpretations of the same constructor
   -- maybe we should use JMeq instead?
-  NoConfusionCon : ∀ {C γ} (x y : ⟦ C ⟧ᶜ (μ D) γ) → Set a
+  NoConfusionCon : ∀ {C γ} (x y : ⟦ C ⟧ᶜ X γ) → Set a
   NoConfusionCon {κ _  } (refl  ) (refl  ) = ⊤′
   NoConfusionCon {ι _ _} (x , dx) (y , dy) = x ≡ y × NoConfusionCon dx dy
   NoConfusionCon {π _ _} (x , dx) (y , dy) = Σ (x ≡ y) λ { refl → NoConfusionCon dx dy }
 
-  NoConfusion : ∀ {γ} (x y : μ D γ) → Set a
-  NoConfusion ⟨ kx , x ⟩ ⟨ ky , y ⟩ with kx == ky
+  NoConfusion : ∀ {γ} (x y : ⟦ D ⟧ᵈ X γ) → Set a
+  NoConfusion (kx , x) (ky , y) with kx == ky
   ... | yes refl = NoConfusionCon x y
   ... | no kx≢ky = ⊥′
 
-
-  noConfRefl : ∀ {C γ} (x : ⟦ C ⟧ᶜ (μ D) γ) → NoConfusionCon x x
+  noConfRefl : ∀ {C γ} (x : ⟦ C ⟧ᶜ X γ) → NoConfusionCon x x
   noConfRefl {κ γ  } refl    = unit
   noConfRefl {ι γ C} (x , d) = refl , noConfRefl d
   noConfRefl {π S C} (s , d) = refl , noConfRefl d
 
-  noConf : ∀ {γ} {x y : μ D γ}
-         → x ≡ y → NoConfusion x y
-  noConf {x = ⟨ kx , x ⟩} {⟨ ky , y ⟩} refl with kx == ky
+  noConf : ∀ {γ} {x y : ⟦ D ⟧ᵈ X γ} → x ≡ y → NoConfusion x y
+  noConf {x = kx , x} {ky , y} refl with kx == ky
   ... | yes refl = noConfRefl x
   ... | no kx≢ky = ⊥-elim (kx≢ky refl) 
 
-
-  noConfCon : ∀ {C γ} {x y : ⟦ C ⟧ᶜ (μ D) γ} → NoConfusionCon x y → x ≡ y
+  noConfCon : ∀ {C γ} {x y : ⟦ C ⟧ᶜ X γ} → NoConfusionCon x y → x ≡ y
   noConfCon {κ γ  } {x = refl} {refl} nc = refl
   noConfCon {ι γ C} (refl , nc) = cong _ (noConfCon nc)
   noConfCon {π S C} (refl , nc) = cong _ (noConfCon nc)
 
-  noConf₂ : ∀ {γ} {x y : μ D γ} → NoConfusion x y → x ≡ y
-  noConf₂ {x = ⟨ kx , x ⟩} {y = ⟨ ky , y ⟩} with kx == ky
-  ... | yes refl = cong (⟨_⟩ ∘ (kx ,_)) ∘ noConfCon
+  noConf₂ : ∀ {γ} {x y : ⟦ D ⟧ᵈ X γ} → NoConfusion x y → x ≡ y
+  noConf₂ {x = kx , x} {ky , y} with kx == ky
+  ... | yes refl = cong (kx ,_) ∘ noConfCon
   ... | no kx≢ky = λ ()
 
-{-
-module Confusion {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄ where
 
-  open HasDesc
-  open module C = Case A
+module SoIAmConfusion {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄ where
 
-  NoConfusion : {γ : I} (x y : A γ) → Set a
-  NoConfusion {γ} x = case (const (A γ → Set a)) (declareMembers m) x
+  open HasDesc ⦃ ... ⦄
+  module C = Confusion D A
+  open SingleStep ⦃ ... ⦄
+
+  NoConfusion : ∀ {γ} (x y : A γ) → Set a
+  NoConfusion x y = C.NoConfusion (step x) (step y)
+
+  noConf : ∀ {γ} {x y : A γ} → x ≡ y → NoConfusion x y
+  noConf {x = x} {y} = C.noConf ∘ cong step
+
+  noConf₂ : ∀ {γ} {x y : A γ} → NoConfusion x y → x ≡ y
+  noConf₂ {x = x} {y} = aux ∘ C.noConf₂
     where
-      m : (k : Fin (n H)) → con-method (const (A γ → Set a)) k
-      m k = {!!}
-        where
-          walk : ∀ C {con} → unfold (const (A γ → Set a)) C con {!!}
-          walk (κ γ  )       = {!!}
-          walk (ι γ C)       = {!!}
-          walk (π S C) {con} = λ s → walk (C s) {con s}
-
--}
+      aux : step x ≡ step y → x ≡ y
+      aux p = trans (sym $ unstep∘step x)
+            $ trans (cong unstep p) (unstep∘step y)
