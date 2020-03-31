@@ -10,6 +10,7 @@ module SingleStep {i} {I : Set i} {A : I → Set i} ⦃ H : HasDesc {i} A ⦄ wh
 
   open HasDesc ⦃ ... ⦄
 
+  -- VERY BAD
   step : ∀ {γ} → A γ → ⟦ D ⟧ᵈ A γ
   step {γ} x with to x
   ... | ⟨ k , x′ ⟩ = k , aux x′
@@ -19,8 +20,16 @@ module SingleStep {i} {I : Set i} {A : I → Set i} ⦃ H : HasDesc {i} A ⦄ wh
       aux {ι γ C} (x , d) = from x , aux d
       aux {π S C} (s , d) = s      , aux d
 
+  -- VERY BAD TOO
+  unstep : ∀ {γ} → ⟦ D ⟧ᵈ A γ → A γ
+  unstep {γ} (k , x) = from ⟨ k , aux x ⟩
+    where
+      aux : ∀ {C} → ⟦ C ⟧ᶜ A γ → ⟦ C ⟧ᶜ (μ D) γ
+      aux {κ γ  } refl    = refl
+      aux {ι γ C} (x , d) = to x , aux d
+      aux {π S C} (s , d) = s , aux d
+
   postulate
-    unstep      : ∀ {γ} → ⟦ D ⟧ᵈ A γ → A γ
     unstep∘step : ∀ {γ} (x : A γ) → unstep (step x) ≡ x
 
 
@@ -231,12 +240,24 @@ module Recursion {i n} {I : Set i} (D : Desc {i} I n)
     rec x = p x (below x)
 
 
-{-
-module Recursor {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
+module Recursor {i} {I : Set i} (A : I → Set i) ⦃ H : HasDesc {i} A ⦄
                 {j} (P : {γ : I} → A γ → Set j) where
 
-  open HasDesc
-  module Elim = Eliminator A H
+  open HasDesc ⦃ ... ⦄
+  open SingleStep ⦃ ... ⦄
+  module R = Recursion D (P ∘ from)
+
+  Below : ∀ {γ} → A γ → Set j
+  Below x = R.Below (to x)
+
+  rec : (∀ {γ} (x : A γ) → Below x → P x) → ∀ {γ} (x : A γ) → P x
+  rec f x = transport P (from∘to x) px
+    where
+      px : P (from (to x))
+      px = R.rec (λ x′ bx′ → f (from x′) (transport R.Below (sym (to∘from x′)) bx′))
+                 (to x)
+
+  {-
 
   Below-method : (k : Fin (n H)) → indexVec (Elim.elim-methods (const (Set j))) k
   Below-method k =
@@ -284,7 +305,7 @@ module Recursor {i} {I : Set i} (A : I → Set i) (H : HasDesc {i} A)
   rec f x = f x (below f x)
   -}
 
-module Confusion {a n} {I : Set a} (D : Desc {a} I n)
+module SoIAmConfusion {a n} {I : Set a} (D : Desc {a} I n)
                  (X : I → Set a) where
 
   -- | Relation between two interpretations of the same constructor
@@ -320,10 +341,10 @@ module Confusion {a n} {I : Set a} (D : Desc {a} I n)
   ... | no kx≢ky = λ ()
 
 
-module SoIAmConfusion {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄ where
+module NoConfusion {a} {I : Set a} (A : I → Set a) ⦃ H : HasDesc {a} A ⦄ where
 
   open HasDesc ⦃ ... ⦄
-  module C = Confusion D A
+  module C = SoIAmConfusion D A
   open SingleStep ⦃ ... ⦄
 
   NoConfusion : ∀ {γ} (x y : A γ) → Set a

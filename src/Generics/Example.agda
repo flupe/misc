@@ -1,6 +1,6 @@
 module Generics.Example where
 
-open import Generics.Prelude
+open import Generics.Prelude hiding (_≤_)
 open import Generics.Desc
 open import Generics.Reflection
 open import Generics.Constructions
@@ -61,13 +61,26 @@ module NatDesc where
   case-nat : ∀ {i} (P : nat tt → Set i) → case-type nat P
   case-nat P = get-case nat P
 
+  data _≤_ : (x y : nat tt) → Set where
+    ze≤ : ∀ x → ze ≤ x
+    su≤ : ∀ x y → x ≤ y → su x ≤ su y
 
-  -- instance
-  --   natEq : Eq (nat tt)
-  --   natEq = deriveEq nat
+  P : nat tt → Set
+  P x = x ≤ su x
 
-  --   natShow : Show (nat tt)
-  --   natShow = deriveShow nat
+  test : ∀ x → P x
+  test = Recursor.rec nat P f
+    where
+      f : ∀ x → Recursor.Below nat P x → x ≤ su x
+      f ze ∗ = ze≤ (su ze)
+      f (su x) ((px , bx) , ∗) rewrite from∘to x = su≤ x (su x) px
+
+  instance
+    natEq : Eq (nat tt)
+    natEq = deriveEq nat
+
+    -- natShow : Show (nat tt)
+    -- natShow = deriveShow nat
 
   -- n1 : nat tt
   -- n1 = su (su ze)
