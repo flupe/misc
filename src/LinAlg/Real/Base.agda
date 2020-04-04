@@ -13,7 +13,7 @@ open import Data.Product
 open import Data.Sum.Base
 
 open import Level using (0ℓ)
-open import Function.Base using (_∘_)
+open import Function.Base using (_∘_; case_of_)
 
 open import Relation.Unary using (Pred; _∈_; _∉_; _∩_)
 open import Relation.Binary.PropositionalEquality
@@ -38,9 +38,22 @@ record ℝ : Set₁ where
     ordered : ∀ {x y} → x ∈ lower → y ∈ upper → x ℚ.< y
     located : ∀ {x y} → x ℚ.< y → x ∈ lower ⊎ y ∈ upper
 
+
   disjoint : ∀ x → x ∉ (lower ∩ upper)
   disjoint x (x∈L , x∈U) =
     ⊥-elim (ℚ.<-irrefl refl (ordered x∈L x∈U))
+
+  lower-bound : ∀ {x y} → y ∈ lower → x ℚ.< y → x ∈ lower
+  lower-bound y∈L x<y =
+    case located x<y of λ where
+      (inj₁ x∈L) → x∈L
+      (inj₂ y∈U) → ⊥-elim (ℚ.<-irrefl refl (ordered y∈L y∈U))
+
+  upper-bound : ∀ {x y} → x ∈ upper → x ℚ.< y → y ∈ upper
+  upper-bound x∈U x<y =
+    case located x<y of λ where
+      (inj₁ x∈L) → ⊥-elim (ℚ.<-irrefl refl (ordered x∈L x∈U))
+      (inj₂ y∈U) → y∈U
 
 open ℝ
 
@@ -157,8 +170,11 @@ module ℚu-≤-Reasoning where
     ℚu-<-≤-trans
     ℚu-≤-<-trans
 
-postulate
-  ℚu-+-monoʳ-< : ∀ x → (x ℚu.+_) Preserves ℚu._<_ ⟶ ℚu._<_
+ℚu-+-monoʳ-< : ∀ x → (x ℚu.+_) Preserves ℚu._<_ ⟶ ℚu._<_
+ℚu-+-monoʳ-< x {i} {j} (ℚu.*<* ij<ji) = ℚu.*<* {!!}
+  where open ℤ.≤-Reasoning
+        open import Data.Rational.Unnormalised hiding (_*_)
+        open import Data.Integer.Base using (_*_; _+_)
 
 ℚu-+-monoˡ-< : ∀ x → (ℚu._+ x) Preserves ℚu._<_ ⟶ ℚu._<_
 ℚu-+-monoˡ-< x {i} {j} i<j
@@ -166,10 +182,9 @@ postulate
         | ℚu.+-comm-≡ j x
         = ℚu-+-monoʳ-< x i<j
 
-ℚu-+-mono-< : ℚu._+_ Preserves₂ ℚu._<_ ⟶ ℚu._<_ ⟶ ℚu._<_
-ℚu-+-mono-< x<y u<v = {!!}
-  where open ℤ.≤-Reasoning
-
+postulate
+  ℚu-+-mono-< : ℚu._+_ Preserves₂ ℚu._<_ ⟶ ℚu._<_ ⟶ ℚu._<_
+  ℚ-+-mono-<  : ℚ._+_ Preserves₂ ℚ._<_ ⟶ ℚ._<_ ⟶ ℚ._<_
 
 ------------------------------------------------------------------------
 -- Operations on reals.
@@ -193,29 +208,65 @@ r₁ + r₂ = record
           y , y∈U₂ = upper-inhabited r₂
       in x ℚ.+ y , x , y , refl , x∈U₁ , y∈U₂
   ; lower-open = λ {z} z∈L →
-      let _ , _ , z≡x+y , x∈L₁ , y∈L₂ = z∈L
+      let x , y , z≡x+y , x∈L₁ , y∈L₂ = z∈L
           x′ , x<x′ , x′∈L₁ = lower-open r₁ x∈L₁
           y′ , y<y′ , y′∈L₂ = lower-open r₂ y∈L₂
       in x′ ℚ.+ y′
-       , {!!}
+       , (begin-strict z          ≡⟨ z≡x+y ⟩
+                       x  ℚ.+ y   <⟨ ℚ-+-mono-< x<x′ y<y′ ⟩
+                       x′ ℚ.+ y′  ∎)
        , (x′ , y′ , refl , x′∈L₁ , y′∈L₂)
   ; upper-open = λ {z} z∈U →
-      let _ , _ , z≡x+y , x∈U₁ , y∈U₂ = z∈U
-          x′ , x<x′ , x′∈U₁ = upper-open r₁ x∈U₁
-          y′ , y<y′ , y′∈U₂ = upper-open r₂ y∈U₂
+      let x , y , z≡x+y , x∈U₁ , y∈U₂ = z∈U
+          x′ , x′<x , x′∈U₁ = upper-open r₁ x∈U₁
+          y′ , y′<y , y′∈U₂ = upper-open r₂ y∈U₂
       in x′ ℚ.+ y′
-       , {!!}
+       , (begin-strict x′ ℚ.+ y′  <⟨ ℚ-+-mono-< x′<x y′<y ⟩
+                       x  ℚ.+ y   ≡⟨ sym z≡x+y ⟩
+                       z  ∎)
        , (x′ , y′ , refl , x′∈U₁ , y′∈U₂)
   ; ordered = λ {z₁} {z₂} z₁∈L z₂∈U →
       let x₁ , y₁ , z₁≡x₁+y₁ , x₁∈L₁ , y₁∈L₂ = z₁∈L
           x₂ , y₂ , z₂≡x₂+y₂ , x₂∈U₁ , y₂∈U₂ = z₂∈U
           x₁<x₂ = ordered r₁ x₁∈L₁ x₂∈U₁
           y₁<y₂ = ordered r₂ y₁∈L₂ y₂∈U₂
-      in {!!}
+      in (begin-strict z₁         ≡⟨ z₁≡x₁+y₁ ⟩
+                       x₁ ℚ.+ y₁  <⟨ ℚ-+-mono-< x₁<x₂ y₁<y₂ ⟩
+                       x₂ ℚ.+ y₂  ≡⟨ sym z₂≡x₂+y₂ ⟩
+                       z₂ ∎)
+  ; located = {!!}
+  }
+  where open ℚ.≤-Reasoning
+
+-- negation
+
+-_ : ℝ → ℝ
+- r = record
+  { lower = upper r ∘ ℚ.-_
+  ; upper = lower r ∘ ℚ.-_
+  ; lower-inhabited =
+      let x , x∈upper = upper-inhabited r
+      in ℚ.- x , subst (upper r) (sym (⁻¹-involutive x)) x∈upper
+  ; upper-inhabited =
+      let y , y∈lower = lower-inhabited r
+      in ℚ.- y , subst (lower r) (sym (⁻¹-involutive y)) y∈lower
+  ; lower-open = λ {y} -y∈U →
+      let x , x<-y , x∈U = upper-open r -y∈U
+      in ℚ.- x
+        , {!!}
+  ; upper-open = λ {x} -x∈L →
+      let y , -x<y , y∈L = lower-open r -x∈L
+      in ℚ.- y
+        , {!!}
+  ; ordered = {!!}
   ; located = {!!}
   }
 
+_-_ : ℝ → ℝ → ℝ
+x - y = x + - y
+
 {-
+
 -- multiplication
 
 _*_ : ℝ → ℝ → ℝ
@@ -230,35 +281,20 @@ r₁ * r₂ = record
       let x , x∈U₁ = upper-inhabited r₁
           y , y∈U₂ = upper-inhabited r₂
       in x ℚ.* y , x , y , refl , x∈U₁ , y∈U₂
-  ; lower-open = {!!}
+  ; lower-open =  λ {z} z∈L →
+      let x , y , z≡x*y , x∈L₁ , y∈L₂ = z∈L
+          x′ , x<x′ , x′∈L₁ = lower-open r₁ x∈L₁
+          y′ , y<y′ , y′∈L₂ = lower-open r₂ y∈L₂
+      in x′ ℚ.* y′
+       , (begin-strict z          ≡⟨ z≡x*y ⟩
+                       x  ℚ.* y   <⟨ {!!} ⟩
+                       x′ ℚ.* y′  ∎)
+       , (x′ , y′ , refl , x′∈L₁ , y′∈L₂)
   ; upper-open = {!!}
   ; ordered = {!!}
   ; located = {!!}
   }
-
--- negation
-
--_ : ℝ → ℝ
-- r = record
-  { lower = upper r ∘ ℚ.-_
-  ; upper = lower r ∘ ℚ.-_
-  ; lower-inhabited =
-      let x , x∈upper = upper-inhabited r
-      in ℚ.- x , subst (upper r) (sym (⁻¹-involutive x)) x∈upper
-  ; upper-inhabited =
-      let y , y∈lower = lower-inhabited r
-      in ℚ.- y , subst (lower r) (sym (⁻¹-involutive y)) y∈lower
-
-  ; lower-open = λ {y} -y∈U →
-      let x , x<-y , x∈U = upper-open r -y∈U
-      in ℚ.- x , {!!} , {!!}
-  ; upper-open = {!!}
-  ; ordered = {!!}
-  ; located = {!!}
-  }
-
-_-_ : ℝ → ℝ → ℝ
-x - y = x + - y
+  where open ℚ.≤-Reasoning
 
 ------------------------------------------------------------------------
 -- Constructing reals from rationals.
