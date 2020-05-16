@@ -6,55 +6,10 @@ open import Agda.Primitive
 open import Agda.Builtin.Sigma
 open import Agda.Builtin.List
 
-open import Agda.Primitive.Cubical renaming (primTransp to transp) public
-open import Agda.Builtin.Cubical.Path using (PathP; _≡_) public
-
-variable i j : Level
+open import UP.Prelude public
 
 
--- prelude
-------------------------------------------------------------
-
-infixr -1 _$_
-
-const : {A : Set i} → A → {B : Set j} → B → A
-const x _ = x
-
-_$_ : {A : Set i} {P : A → Set j} (f : ∀ x → P x) (x : A) → P x
-f $ x = f x
-
-id : {A : Set i} → A → A
-id x = x
-
-_×_ : (A B : Set i) → Set i
-A × B = Σ A (const B)
-
-case_of_ : {A : Set i} {P : A → Set j} (x : A) → ((x : A) → P x) → P x
-case x of f = f x
-
-instance
-  refl : {A : Set i} {x : A} → x ≡ x
-  refl {x = x} i = x
-
-[_]_≡_ : {A B : Set i} (E : A ≡ B) → A → B → Set i
-[ E ] x ≡ y = PathP (λ i → E i) x y
-
-funExt : {A : Set i} {P Q : A → Set j}
-       → (∀ {x y} → x ≡ y → P x ≡ Q y)
-       → P ≡ Q
-funExt P=Q i x = P=Q {x} refl i
-
-≡pred : {A B : Set i} → A ≡ B → (A → Set j) ≡ (B → Set j)
-≡pred {j = j} A≡B i = A≡B i → Set j
-
-postulate
-  funExt′ : {A B : Set i} (A≡B : A ≡ B)
-            {P : A → Set j} {Q : B → Set j}
-          → (∀ {x y} → [ A≡B ] x ≡ y → P x ≡ Q y)
-          → [ ≡pred A≡B ] P ≡ Q
-
-
--- type-indexed univalent relation ·⋈·
+-- ·⋈·
 ------------------------------------------------------------
 
 record _⋈_ (A B : Set i) : Set (lsuc i) where
@@ -84,14 +39,21 @@ record UR-Set (A B : Set i) : Set (lsuc i) where
     rel : A ⋈ B
     eq  : A ≡ B
     coh : ur rel ≡ [ eq ]_≡_
-open UR-Set
+open UR-Set public
 
 instance
   ⋈-Set : Set i ⋈ Set i
   ⋈-Set = UR UR-Set
 
-postulate
-  Set≈Set : Set i ≈ Set i
+≡⇒≈ : {A B : Set i} → A ≡ B → A ≈ B
+≡⇒≈ A≡B = record
+  { rel = UR [ A≡B ]_≡_
+  ; eq  = A≡B
+  ; coh = refl
+  }
+
+≃⇒≈ : {A B : Set i} → A ≃ B → A ≈ B
+≃⇒≈ = ≡⇒≈ ∘ ua
 
 
 -- (∀ x → P x) ⋈ (∀ y → Q y)
@@ -114,14 +76,18 @@ postulate
       → {P : A → Set j} {Q : B → Set j}
       → (P≈Q : ∀ {a b} (H : ur (rel A≈B) a b) → P a ≈ Q b)
       → (∀ a → P a) ≈ (∀ b → Q b)
-
+{-
+∀≈∀ A≈B P≈Q = record
+  { rel = ⋈-∀ (rel A≈B) (rel ∘ P≈Q)
+  ; eq  = ∀≡∀ (eq A≈B)  {!eq ∘ P≈Q!}
+  ; coh = {!!}
+  } -}
 
 -- List A ⋈ List B
 ------------------------------------------------------------
 
 List≡List : {A B : Set i} → A ≡ B → List A ≡ List B
 List≡List A≡B i = List (A≡B i)
-
 
 instance
   -- might be too easy
@@ -137,3 +103,28 @@ instance
     → (∀ {a b} (H : [ A≡B ] a ≡ b) → P a ≡ Q b)
     → Σ A P ≡ Σ B Q
 Σ≡Σ A≡B P=Q i = Σ (A≡B i) (funExt′ A≡B P=Q i)
+
+
+-- Set i ≈ Set i
+------------------------------------------------------------
+postulate
+  test : {A B : Set i} → UR-Set A B ≃ (A ≡ B)
+
+-- test .fst = eq
+-- test .snd .equiv-proof A≡B
+--   = (record { rel = UR [ A≡B ]_≡_ ; eq = A≡B ; coh = refl } , refl)
+--   , λ where (A⋈B , eqA⋈B) → {!!}
+
+Set≈Set : Set i ≈ Set i
+Set≈Set .rel = ⋈-Set
+Set≈Set .eq  = refl
+Set≈Set .coh i A B = ua (test {A = A} {B}) i
+
+
+-- black box fundamental property
+------------------------------------------------------------
+
+■ : {A B : Set i} (A≈B : A ≈ B)
+  → ∀ x → ur (rel A≈B) x (transport (eq A≈B) x)
+■ A≈B x = transport (λ i → coh A≈B (~ i) x (transport (eq A≈B) x))
+                    (transport-filler (eq A≈B) x)
