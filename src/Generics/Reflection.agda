@@ -49,6 +49,12 @@ record HasDesc {a} {I : Set a} (A : I → Set a) : Set (lsuc a) where
     to∘from : ∀ {i} (x : μ D i) → to (from x) ≡ x
     from∘to : ∀ {i} (x : A i)   → from (to x) ≡ x
 
+    step   : ∀ {i} → A i → ⟦ D ⟧ᵈ A i
+    unstep : ∀ {i} → ⟦ D ⟧ᵈ A i → A i
+
+    unstep∘step : ∀ {i} (x : A i) → unstep (step x) ≡ x
+    step∘unstep : ∀ {i} (x : ⟦ D ⟧ᵈ A i) → step (unstep x) ≡ x
+
     -- | A map from a position in the datatype to the actual constructor
     constr : (k : Fin n) → con-type A (indexVec D k)
 

@@ -50,6 +50,10 @@ module NatDesc where
              ; to = to′
              ; from = from′
              ; to∘from = to∘from
+             ; step = λ { ze → 0 , refl ; (su x) → 1 , x , refl }
+             ; unstep = λ { (zero , refl) → ze ; (suc zero , x , refl) → su x }
+             ; step∘unstep = {!!}
+             ; unstep∘step = {!!}
              ; from∘to = from∘to
              ; constr = (λ { zero → ze ; (suc zero) → su })
              ; constr-proof = λ { zero → refl ; (suc zero) → λ x → cong su (sym (from∘to x)) }
@@ -131,6 +135,10 @@ module TreeDesc {A : Set} where
                     ; from = from
                     ; to∘from = to∘from
                     ; from∘to = from∘to
+                    ; step = {!!}
+                    ; unstep = {!!}
+                    ; step∘unstep = {!!}
+                    ; unstep∘step = {!!}
                     ; constr = λ { zero → leaf ; (suc zero) → node }
                     ; constr-proof = λ { zero → refl ; (suc zero) → more }
                     }
@@ -168,6 +176,10 @@ module IdDesc (A : Set) where
                     ; from = from x
                     ; to∘from = to∘from x 
                     ; from∘to = from∘to x
+                    ; step = {!!}
+                    ; unstep = {!!}
+                    ; step∘unstep = {!!}
+                    ; unstep∘step = {!!}
                     ; constr = λ { zero → refl }
                     ; constr-proof = λ { zero → refl }
                     }
@@ -216,6 +228,10 @@ module VecDesc (A : Set) where
                   ; from = from
                   ; to∘from = to∘from
                   ; from∘to = from∘to
+                  ; step = {!!}
+                  ; unstep = {!!}
+                  ; step∘unstep = {!!}
+                  ; unstep∘step = {!!}
                   ; constr = λ { zero → []; (suc zero) → λ n x xs → x ∷ xs }
                   ; constr-proof = λ { zero → refl; (suc zero) → λ n x xs → cong (x ∷_) (sym (from∘to xs))}
                   }
