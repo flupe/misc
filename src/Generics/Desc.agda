@@ -2,7 +2,7 @@
 
 open import Generics.Prelude
 
-module Generics.Desc (Eq : Equality) where
+module Generics.Desc (Eq : Equality)  where
 
 open Equality Eq using (_≡_; refl)
 
@@ -154,3 +154,62 @@ module Parametrized where
 
   vcons : {A : Set k} {n : N} → A → vec A n → vec A (S n)
   vcons {n = n} x xs = ⟨ suc zero , n , lift x , xs , refl ⟩
+
+
+module Further where
+
+  infixl 3 _▷_
+
+  data Tele (k : Level) : Set (lsuc k)
+  data ExTele {k : Level} : Tele k → Set (lsuc k)
+  ⟦_⟧ᵗ : Tele k → Set k
+  ⟦_⟧ˣᵗ : {T : Tele k} → ExTele T → Set k
+  
+  data Tele k where
+    ε   : Tele k
+    _▷_ : (T : Tele k) → (⟦ T ⟧ᵗ → Set k) → Tele k
+
+  _▷′_ : Tele k → Set k → Tele k
+  T ▷′ S = T ▷ const S
+
+  ⟦ ε ⟧ᵗ     = ⊤′
+  ⟦ T ▷ F ⟧ᵗ = Σ ⟦ T ⟧ᵗ F
+
+  -- extension of telescopes
+  data ExTele {k} where
+    tele : ∀ T → ExTele T
+    _▷_  : ∀ {T} → (Γ : ExTele T) → (⟦ Γ ⟧ˣᵗ → Set k) → ExTele T
+
+  ⟦_⟧ˣᵗ (tele T) = ⟦ T ⟧ᵗ
+  ⟦ T ▷ F ⟧ˣᵗ = Σ ⟦ T ⟧ˣᵗ F
+
+{-
+
+  -- given an interpretation of an extended telescope, we can truncate
+  drop : {T : Tele k} (Γ : ExTele T) → ⟦ Γ ⟧ˣᵗ → Set k
+  drop (tele _) γ = {!!}
+  drop (Γ ▷ F) (γ , _) = {!!}
+
+  data ConDesc {P : Tele k} (Γ : ExTele P) (I : ExTele P) : Set (lsuc k)
+  
+  data ConDesc {k} {P} Γ I where
+    κ : ((γ : ⟦ Γ ⟧ˣᵗ) → {!drop!}) → ConDesc Γ I
+    -- ι : (⟦ Γ ⟧ˣᵗ → ⟦ P ▷ I ⟧ᵗ) → ConDesc Γ I → ConDesc Γ I
+    -- π : (S : ⟦ Γ ⟧ˣᵗ → Set k) → ConDesc (Γ ▷ S) I → ConDesc Γ I
+  ⟦_⟧ᶜ : {P : Tele k} {Γ : ExTele P} {I : ⟦ P ⟧ᵗ → Set k}
+       → ConDesc Γ I → (⟦ P ▷ I ⟧ᵗ → Set k) → Σ ⟦ Γ ⟧ˣᵗ (I ∘ drop Γ) → Set k
+  ⟦ κ f ⟧ᶜ X (g , i)   = f g ≡ i
+  ⟦ ι f C ⟧ᶜ X (g , i) = (X (f g)) × ⟦ C ⟧ᶜ X (g , i)
+  ⟦ π S C ⟧ᶜ X (g , i) = Σ[ s ∈ S g ] ⟦ C ⟧ᶜ X ((g , s) , i)
+
+  Desc : (P : Tele k) (I : ⟦ P ⟧ᵗ → Set k) → Nat → Set (lsuc k)
+  Desc P I = Vec (ConDesc (tele P) I)
+
+  ⟦_⟧ᵈ : {P : Tele k} {I : ⟦ P ⟧ᵗ → Set k} {n : Nat}
+       → Desc P I n → (⟦ P ▷ I ⟧ᵗ → Set k) → ⟦ P ▷ I ⟧ᵗ → Set k
+  ⟦ D ⟧ᵈ X gi = Σ[ k ∈ Fin _ ] ⟦ lookup D k ⟧ᶜ X gi
+
+  data μ {n} {P : Tele k} {I : ⟦ P ⟧ᵗ → Set k} (D : Desc P I n) (gi : ⟦ P ▷ I ⟧ᵗ) : Set k where
+    ⟨_⟩ : ⟦ D ⟧ᵈ (μ D) gi → μ D gi
+  
+-}

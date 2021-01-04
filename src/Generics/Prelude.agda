@@ -5,7 +5,7 @@ module Generics.Prelude where
 open import Agda.Primitive public
 open import Agda.Builtin.List public
 open import Agda.Builtin.Sigma public
-open import Agda.Builtin.Nat public
+open import Agda.Builtin.Nat public hiding (_==_)
 open import Agda.Builtin.Unit public
 
 variable a b i j k : Level
