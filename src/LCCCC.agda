@@ -2,6 +2,8 @@ module LCCCC where
 
 open import Agda.Builtin.Equality
 open import Agda.Builtin.Nat renaming (Nat to ℕ)
+open import Agda.Builtin.Sigma
+open import Agda.Builtin.Unit
 
 variable
   A : Set
@@ -12,6 +14,8 @@ infixl 4 _,_
 data Typ : Set where
   unit    : Typ
   arr prod : (a b : Typ) → Typ
+
+data ⊥ : Set where
 
 data Ctx : ℕ → Set where
   ε   : Ctx 0
@@ -48,6 +52,11 @@ data _⊢_∋_≡_ : (Γ : Ctx n) (t : Typ) → Tm Γ t → Tm Γ t → Set wher
 
   p₁    : ∀ {u v} → Γ ⊢ prod a b ∋ u ≡ v → Γ ⊢ a ∋ p₁ u ≡ p₁ v
   p₂    : ∀ {u v} → Γ ⊢ prod a b ∋ u ≡ v → Γ ⊢ b ∋ p₂ u ≡ p₂ v
+
+  βp₁   : (u v : _) → Γ ⊢ a ∋ u ≡ p₁ (pair u v)
+  βp₂   : (u v : _) → Γ ⊢ b ∋ v ≡ p₂ (pair u v)
+  ηpair : ∀ p → Γ ⊢ prod a b ∋ p ≡ pair (p₁ p) (p₂ p)
+  tt    : ∀ p → Γ ⊢ unit ∋ p ≡ tt
   -- TODO : β and η equality
 
 
@@ -59,29 +68,15 @@ record CCC : Set₁ where
   field
     Ob  : Set
     Hom : (a b : Ob) → Set
+
     _~_ : ∀ {a b} (x y : Hom a b) → Set
-    _∘_ : ∀ {a b c} → Hom b c → Hom a b → Hom a c
-    id  : (a : Ob) → Hom a a
-
-    𝟙   : Ob
-    t   : ∀ {a} → Hom a 𝟙
-
-    _×_   : (a b : Ob) → Ob
-    ⟨_,_⟩ : ∀ {a b c} (f : Hom a b) (g : Hom a c) → Hom a (b × c)
-    π₁    : ∀ {a b} → Hom (a × b) a
-    π₂    : ∀ {a b} → Hom (a × b) b
-
-    _^_   : (b a : Ob) → Ob
-    eval  : ∀ {a b} → Hom (b ^ a × a) b
-    curry : ∀ {a b c} (f : Hom (c × a) b) → Hom c (b ^ a)
-
-  field
-    -- _~_ is an equivalence relation
     ~-refl  : ∀ {a b} {f     : Hom a b} → f ~ f
     ~-sym   : ∀ {a b} {f g   : Hom a b} → f ~ g → g ~ f
     ~-trans : ∀ {a b} {f g h : Hom a b} → f ~ g → g ~ h → f ~ h
 
-    -- _∘_ is associative, has left and right unit, preserves _~_
+    _∘_ : ∀ {a b c} → Hom b c → Hom a b → Hom a c
+    id  : (a : Ob) → Hom a a
+
     ∘-assoc : ∀ {a b c d} (f : Hom a b) (g : Hom b c) (h : Hom c d)
             → (h ∘ g) ∘ f ~ h ∘ (g ∘ f)
     ∘-unitˡ : ∀ {a b} (f : Hom a b) → id b ∘ f ~ f
@@ -89,15 +84,28 @@ record CCC : Set₁ where
     ∘-cong  : ∀ {a b c} {f₁ f₂ : Hom a b} {g₁ g₂ : Hom b c}
             → f₁ ~ f₂ → g₁ ~ g₂ → g₁ ∘ f₁ ~ g₂ ∘ f₂
 
+
+    𝟙   : Ob
+    t   : ∀ {a} → Hom a 𝟙
     t-uniq : ∀ {a} (f : Hom a 𝟙) → f ~ t
+
+    _×_   : (a b : Ob) → Ob
+    ⟨_,_⟩ : ∀ {a b c} (f : Hom a b) (g : Hom a c) → Hom a (b × c)
+    π₁    : ∀ {a b} → Hom (a × b) a
+    π₂    : ∀ {a b} → Hom (a × b) b
 
     ⟨⟩-resp-~ : ∀ {a b c} {f₁ f₂ : Hom a b} {g₁ g₂ : Hom a c}
               → f₁ ~ f₂ → g₁ ~ g₂ → ⟨ f₁ , g₁ ⟩ ~ ⟨ f₂ , g₂ ⟩
     π₁∘⟨⟩ : ∀ {a b c} (f : Hom a b) (g : Hom a c) → π₁ ∘ ⟨ f , g ⟩ ~ f
     π₂∘⟨⟩ : ∀ {a b c} (f : Hom a b) (g : Hom a c) → π₂ ∘ ⟨ f , g ⟩ ~ g
+    ⟨⟩∘π  : ∀ {a b c} (p : Hom a (b × c)) → p ~ ⟨ π₁ ∘ p , π₂ ∘ p ⟩
 
-    -- TODO: properties of _^_, curry, eval
+    _^_   : (b a : Ob) → Ob
+    eval  : ∀ {a b} → Hom (b ^ a × a) b
+    curry : ∀ {a b c} (f : Hom (c × a) b) → Hom c (b ^ a)
     curry-resp-∼ : ∀ {a b c} {f g : Hom (c × a) b} → f ~ g → curry f ~ curry g
+    -- TODO: properties of _^_, curry, eval
+
 
 module Example1 (C : CCC) where
   open CCC C
@@ -136,13 +144,94 @@ module Example1 (C : CCC) where
   ⟦ app p q   ⟧Eq = ∘-cong (⟨⟩-resp-~ ⟦ p ⟧Eq ⟦ q ⟧Eq) ~-refl
   ⟦ p₁ p      ⟧Eq = ∘-cong ⟦ p ⟧Eq ~-refl
   ⟦ p₂ p      ⟧Eq = ∘-cong ⟦ p ⟧Eq ~-refl
-    
+  ⟦ βp₁ u v   ⟧Eq = ~-sym (π₁∘⟨⟩ ⟦ u ⟧ ⟦ v ⟧)
+  ⟦ βp₂ u v   ⟧Eq = ~-sym (π₂∘⟨⟩ ⟦ u ⟧ ⟦ v ⟧)
+  ⟦ ηpair u   ⟧Eq = ⟨⟩∘π ⟦ u ⟧
+  ⟦ tt u      ⟧Eq = t-uniq ⟦ u ⟧
+
+open CCC
+
+-- objects are either types or contexts
+data λOb : Set where
+  typ : Typ   → λOb
+  ctx : Ctx n → λOb
+
+LCCC : CCC
+LCCC .Ob = λOb
+
+-- arrows are terms that go from ctx Γ to type t
+-- and from types to types (we need t → 𝟙 for terminal objects, and ⟨_,_⟩ leads to t → 𝟙 × 𝟙 ...
+LCCC .Hom (ctx Γ) (typ t) = Tm Γ t
+LCCC .Hom (typ a) (typ b) = ⊤
+LCCC .Hom _       _       = ⊥
+
+-- we relate arrows for terms that are βη-convertible
+LCCC ._~_ {ctx Γ} {typ t} = Γ ⊢ t ∋_≡_
+LCCC ._~_ {ctx _} {ctx _} _ _ = ⊤
+LCCC ._~_ {typ _} {ctx _} _ _ = ⊤
+LCCC ._~_ {typ _} {typ _} _ _ = ⊤
+
+LCCC .~-refl {ctx Γ} {typ t} = refl
+LCCC .~-refl {ctx _} {ctx _} = tt
+LCCC .~-refl {typ _} {ctx _} = tt
+LCCC .~-refl {typ _} {typ _} = tt
+
+LCCC .~-sym {ctx Γ} {typ t} = sym
+LCCC .~-sym {ctx _} {ctx _} _ = tt
+LCCC .~-sym {typ _} {ctx _} _ = tt
+LCCC .~-sym {typ _} {typ _} _ = tt
+
+LCCC .~-trans {ctx Γ} {typ t} = trans
+LCCC .~-trans {ctx _} {ctx _} _ _ = tt
+LCCC .~-trans {typ _} {ctx _} _ _ = tt
+LCCC .~-trans {typ _} {typ _} _ _ = tt
+
+-- no meaningful composition for terms
+LCCC ._∘_ {ctx Γ} {typ t} {typ c} = {!!}
+LCCC ._∘_ {_    } {_    } = {!!}
+
+-- likewise, no meaningful identity
+LCCC .id  = {!!}
+
+-- this we can ignore
+LCCC .∘-assoc = {!!}
+LCCC .∘-unitˡ = {!!}
+LCCC .∘-unitʳ = {!!}
+LCCC .∘-cong  = {!!}
+
+LCCC .𝟙   = typ unit
+LCCC .t {ctx Γ} = tt
+LCCC .t {typ _} = tt
+
+LCCC .t-uniq {ctx Γ} f = tt f
+LCCC .t-uniq {typ t} f = tt
+
+-- incredibly arbitrary definition
+LCCC ._×_ (typ a) (typ b) = typ (prod a b)
+LCCC ._×_ (typ a) (ctx _) = typ a
+LCCC ._×_ (ctx _) (typ b) = typ b
+LCCC ._×_ (ctx _) (ctx _) = ctx ε
+
+LCCC .⟨_,_⟩ {ctx _} {ctx Γ} ()
+LCCC .⟨_,_⟩ {typ _} {ctx Γ} ()
+LCCC .⟨_,_⟩ {ctx Γ} {typ b} {typ c} = pair
+LCCC .⟨_,_⟩ {typ a} {typ b} {typ c} _ _ = tt
+
+LCCC .π₁ {ctx Γ} {typ b} = {!!}
+LCCC .π₁ {ctx Γ} {ctx b} = {!!}
+LCCC .π₁ {typ a} = {!!}
+LCCC .π₂ = {!!}
+
+LCCC .⟨⟩-resp-~ = {!!}
+LCCC .π₁∘⟨⟩ = {!!}
+LCCC .π₂∘⟨⟩ = {!!}
+LCCC .⟨⟩∘π  = {!!}
+LCCC ._^_   = {!!}
+LCCC .eval  = {!!}
+LCCC .curry = {!!}
+LCCC .curry-resp-∼ = {!!}
 {-
 
-record Model : Set₁ where
-  field Carrier : Set
-
-  Env : ℕ → Set
   Env = Vec Carrier
 
   infix  6 _⟦_⟧
